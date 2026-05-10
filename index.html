@@ -1343,6 +1343,7 @@
         }
     }
 
+    // FIX FOR BARCODE SCANNING: Force convert both values to Strings before comparing
     function filterProductsTable() {
         const searchTerm = document.getElementById('products-search-input').value.toLowerCase();
         let filtered = allProducts;
@@ -1350,14 +1351,15 @@
             filtered = allProducts.filter(p =>
                 (p.name && p.name.toLowerCase().includes(searchTerm)) ||
                 (p.id && p.id.toLowerCase().includes(searchTerm)) ||
-                (p.barcode && p.barcode.includes(searchTerm))
+                (p.barcode && String(p.barcode).includes(searchTerm))
             );
         }
         renderProductsTable(filtered);
     }
 
+    // FIX FOR BARCODE SCANNING
     function handleProductTableScan(barcode) {
-        const product = allProducts.find(p => p.barcode === barcode);
+        const product = allProducts.find(p => String(p.barcode) === String(barcode));
         const searchInput = document.getElementById('products-search-input');
         searchInput.value = barcode;
         if (product) {
@@ -2065,6 +2067,7 @@
         });
     }
     
+    // FIX FOR BARCODE SCANNING
     function filterProductDropdown(inputId, selectId) {
         const searchTerm = document.getElementById(inputId).value.toLowerCase();
         const selectElement = document.getElementById(selectId);
@@ -2072,7 +2075,7 @@
         const filtered = allProducts.filter(p =>
             (p.name && p.name.toLowerCase().includes(searchTerm)) ||
             (p.id && p.id.toLowerCase().includes(searchTerm)) ||
-            (p.barcode && p.barcode.includes(searchTerm))
+            (p.barcode && String(p.barcode).includes(searchTerm))
         );
         const currentSelectedValue = selectElement.value;
         const optionsHtml = '<option value="">Select Product</option>' + 
@@ -2140,6 +2143,7 @@
         confirmModal.show();
     }
 
+    // FIX FOR BARCODE SCANNING
     function filterPosProducts() {
         const searchTerm = document.getElementById('product-search').value.toLowerCase();
         const categorySelect = document.getElementById('pos-category-select');
@@ -2150,7 +2154,7 @@
             filtered = filtered.filter(p => p.category === category);
         }
         if (searchTerm) {
-            filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm) || (p.barcode && p.barcode.includes(searchTerm)));
+            filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm) || (p.barcode && String(p.barcode).includes(searchTerm)));
         }
         
         updateProductGrid(filtered);
@@ -2172,9 +2176,10 @@
         document.body.removeChild(link);
     }
     
+    // FIX FOR BARCODE SCANNING
     function handleProductSearch(term) {
         if(!term) return;
-        const product = allProducts.find(p => p.barcode === term);
+        const product = allProducts.find(p => String(p.barcode) === String(term));
         if (product) {
             if (product.stock > 0) {
                 addToCart(product);
@@ -2194,9 +2199,10 @@
         }
     }
     
+    // FIX FOR BARCODE SCANNING
     function handlePurchaseSearch(searchTerm) {
         filterProductDropdown('purchase-search-input', 'purchase-product');
-        const product = allProducts.find(p => p.barcode === searchTerm);
+        const product = allProducts.find(p => String(p.barcode) === String(searchTerm));
         if (product) {
             const selectElement = document.getElementById('purchase-product');
             selectElement.value = product.id;
@@ -2205,9 +2211,10 @@
         }
     }
     
+    // FIX FOR BARCODE SCANNING
     function handleLostStockSearch(searchTerm) {
         filterProductDropdown('lost-stock-search-input', 'lost-stock-product');
-        const product = allProducts.find(p => p.barcode === searchTerm);
+        const product = allProducts.find(p => String(p.barcode) === String(searchTerm));
         if (product) {
             document.getElementById('lost-stock-product').value = product.id;
             showToast(`Selected: ${product.name}`);
@@ -2221,8 +2228,8 @@
     }
 
     function onScanSuccess(decodedText, decodedResult) {
-        if (isProcessingScan) return; // ADD THIS: Ignore if already processing a scan
-        isProcessingScan = true; // ADD THIS: Lock the scanner
+        if (isProcessingScan) return; 
+        isProcessingScan = true; 
 
         document.getElementById('scanner-result').innerHTML = `<div class="alert alert-success m-0 p-2">${decodedText}</div>`;
         
