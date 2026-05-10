@@ -106,10 +106,10 @@
         }
 
         /* Scroll To Top Button Transition */
-        #posScrollTopBtn, #posScrollBottomBtn {
+        #posScrollTopBtn {
             transition: opacity 0.3s ease-in-out, transform 0.2s;
         }
-        #posScrollTopBtn:hover, #posScrollBottomBtn:hover {
+        #posScrollTopBtn:hover {
             transform: translateY(-3px);
         }
 
@@ -130,8 +130,7 @@
         /* --- Login & Role-Based UI Styles --- */
         body.logged-out .navigation, 
         body.logged-out .main, 
-        body.logged-out #posScrollTopBtn,
-        body.logged-out #posScrollBottomBtn { display: none !important; }
+        body.logged-out #posScrollTopBtn { display: none !important; }
         
         #login-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8f9fa; z-index: 9999; align-items: center; justify-content: center; }
         body.logged-out #login-screen { display: flex !important; }
@@ -338,7 +337,7 @@
                     </div>
                     <!-- Scrollable Product Grid Area -->
                     <div class="flex-grow-1">
-                        <div id="pos-product-scroll-area" class="h-100 overflow-auto bg-white p-3 rounded shadow-sm" onscroll="togglePosScrollButtons()">
+                        <div id="pos-product-scroll-area" class="h-100 overflow-auto bg-white p-3 rounded shadow-sm" onscroll="togglePosScrollTop()">
                             <div id="product-grid" class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
                                 <!-- Products populated here -->
                             </div>
@@ -543,19 +542,12 @@
             </div>
         </div>
 
-        <!-- Scroll Buttons (Fixed to viewport) -->
-        <div style="position: fixed; bottom: 30px; right: 30px; z-index: 1050; display: flex; flex-direction: column; gap: 10px;">
-            <button id="posScrollTopBtn" class="btn btn-primary rounded-circle shadow align-items-center justify-content-center d-none" 
-                    onclick="scrollToTopPos()" 
-                    style="width: 55px; height: 55px; padding: 0; opacity: 0.9;">
-                <ion-icon name="arrow-up-outline" style="font-size: 1.8rem; margin: 0;"></ion-icon>
-            </button>
-            <button id="posScrollBottomBtn" class="btn btn-primary rounded-circle shadow align-items-center justify-content-center d-none" 
-                    onclick="scrollToBottomPos()" 
-                    style="width: 55px; height: 55px; padding: 0; opacity: 0.9;">
-                <ion-icon name="arrow-down-outline" style="font-size: 1.8rem; margin: 0;"></ion-icon>
-            </button>
-        </div>
+        <!-- Scroll to Top Button (Fixed to viewport) -->
+        <button id="posScrollTopBtn" class="btn btn-primary rounded-circle shadow align-items-center justify-content-center d-none" 
+                onclick="scrollToTopPos()" 
+                style="position: fixed; bottom: 30px; right: 30px; z-index: 1050; width: 55px; height: 55px; padding: 0; opacity: 0.9;">
+            <ion-icon name="arrow-up-outline" style="font-size: 1.8rem; margin: 0;"></ion-icon>
+        </button>
 
     </div> <!-- End Main -->
     <!-- ================= MODALS ================= -->
@@ -886,9 +878,6 @@
      * Replaces google.script.run by sending a fetch POST request to Google Apps Script
      */
     async function apiCall(actionName, payloadData = {}) {
-        if (API_URL === "https://script.google.com/macros/s/AKfycbyhO8w5pe_l2e3XOt7MEfNfs1CKpGGjMWE_g3cE_YLzhW52wQ9rgXryR7J-Uk_-U4QB/exec" || API_URL.trim() === "") {
-            throw new Error("MISSING API URL: You must paste your Google Apps Script URL into the API_URL variable in index.html!");
-        }
         try {
             const response = await fetch(API_URL, {
                 method: "POST",
@@ -921,24 +910,22 @@
     let syncInterval;
     let isSyncing = false;
     let currentUserRole = null; 
-    let isProcessingScan = false; // Prevents double-scanning
+    let isProcessingScan = false; // ADD THIS: Prevents double-scanning
 
     // Bootstrap Modal instances
     let confirmModal, addProductModal, addPurchaseModal, paymentModal, addNoteModal, scannerModal, cameraModal, lostStockModal;
     
     // --- INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
-        // Robust checks to prevent crashes if HTML elements are missing
-        const getModal = id => document.getElementById(id) ? new bootstrap.Modal(document.getElementById(id)) : null;
-        
-        confirmModal = getModal('confirm-modal');
-        addProductModal = getModal('add-product-modal');
-        addPurchaseModal = getModal('add-purchase-modal');
-        paymentModal = getModal('payment-modal');
-        addNoteModal = getModal('add-note-modal');
-        scannerModal = getModal('scanner-modal');
-        cameraModal = getModal('camera-modal');
-        lostStockModal = getModal('lost-stock-modal');
+        // Initialize Bootstrap Modals
+        confirmModal = new bootstrap.Modal(document.getElementById('confirm-modal'));
+        addProductModal = new bootstrap.Modal(document.getElementById('add-product-modal'));
+        addPurchaseModal = new bootstrap.Modal(document.getElementById('add-purchase-modal'));
+        paymentModal = new bootstrap.Modal(document.getElementById('payment-modal'));
+        addNoteModal = new bootstrap.Modal(document.getElementById('add-note-modal'));
+        scannerModal = new bootstrap.Modal(document.getElementById('scanner-modal'));
+        cameraModal = new bootstrap.Modal(document.getElementById('camera-modal'));
+        lostStockModal = new bootstrap.Modal(document.getElementById('lost-stock-modal'));
         
         loadSavedTheme(); 
         
@@ -950,16 +937,12 @@
 
     // --- LOGIN & SIGNUP SYSTEM ---
     function toggleAuthMode(mode) {
-        const loginWrapper = document.getElementById('login-form-wrapper');
-        const signupWrapper = document.getElementById('signup-form-wrapper');
-        if (!loginWrapper || !signupWrapper) return;
-
         if (mode === 'signup') {
-            loginWrapper.classList.add('d-none');
-            signupWrapper.classList.remove('d-none');
+            document.getElementById('login-form-wrapper').classList.add('d-none');
+            document.getElementById('signup-form-wrapper').classList.remove('d-none');
         } else {
-            signupWrapper.classList.add('d-none');
-            loginWrapper.classList.remove('d-none');
+            document.getElementById('signup-form-wrapper').classList.add('d-none');
+            document.getElementById('login-form-wrapper').classList.remove('d-none');
         }
     }
 
@@ -1022,7 +1005,7 @@
             .catch(err => {
                 loginBtn.innerHTML = 'Login';
                 loginBtn.disabled = false;
-                showToast('API Connection Failed: ' + err.message, 'error');
+                showToast('Failed to connect to server: ' + err.message, 'error');
             });
     }
 
@@ -1056,26 +1039,26 @@
                 updateSyncStatus('success', new Date().toLocaleTimeString());
             })
             .catch(err => {   
-                showToast('Error connecting to backend: ' + err.message, 'error');   
+                showToast('Error loading initial data: ' + err.message, 'error');   
                 if (currentUserRole !== null) hideLoading();   
                 updateSyncStatus('error');
             });
     }
 
     function initializeUI(data) {
-        allProducts = data?.products || [];
-        allCategories = data?.categories || [];
-        allNotes = data?.notes || [];
-        allSalesHistory = data?.salesHistory || [];
-        allPaymentsHistory = data?.paymentsHistory || [];
-        allPurchaseHistory = data?.purchaseHistory || [];
-        allLostStockHistory = data?.lostStockHistory || [];
-        currentInvoiceNumber = data?.invoiceNumber || 'INV-1001';
+        allProducts = data.products || [];
+        allCategories = data.categories || [];
+        allNotes = data.notes || [];
+        allSalesHistory = data.salesHistory || [];
+        allPaymentsHistory = data.paymentsHistory || [];
+        allPurchaseHistory = data.purchaseHistory || [];
+        allLostStockHistory = data.lostStockHistory || [];
+        currentInvoiceNumber = data.invoiceNumber || 'INV-1001';
         
         if (currentUserRole) {
             const activeViewElement = document.querySelector('.view.active');
             if (!activeViewElement || activeViewElement.id === 'dashboard-view') {
-                loadView('dashboard', data?.dashboardData);
+                loadView('dashboard', data.dashboardData);
             }
         }
         
@@ -1088,45 +1071,37 @@
         const toggle = document.querySelector(".toggle");
         const navigation = document.querySelector(".navigation");
         const main = document.querySelector(".main");
-        
-        if (toggle && navigation && main) {
-            toggle.onclick = () => {
-                navigation.classList.toggle("active");
-                main.classList.toggle("active");
-            };
-        }
-        
+        toggle.onclick = () => {
+            navigation.classList.toggle("active");
+            main.classList.toggle("active");
+        };
         const list = document.querySelectorAll(".navigation li.nav-item");
         list.forEach(item => {
             item.addEventListener("click", function() {
                 list.forEach(li => li.classList.remove("hovered"));
                 this.classList.add("hovered");
                 loadView(this.dataset.tab);
-                if (window.innerWidth <= 768 && navigation && main) {
+                if (window.innerWidth <= 768) {
                     navigation.classList.remove("active");
                     main.classList.remove("active");
                 }
             });
         });
         
-        const productImgUpload = document.getElementById('product-image-upload');
-        if (productImgUpload) productImgUpload.addEventListener('change', (event) => handleImageUpload(event, 'product'));
-        
-        const noteImgUpload = document.getElementById('note-image-upload');
-        if (noteImgUpload) noteImgUpload.addEventListener('change', (event) => handleImageUpload(event, 'note'));
+        document.getElementById('product-image-upload').addEventListener('change', (event) => handleImageUpload(event, 'product'));
+        document.getElementById('note-image-upload').addEventListener('change', (event) => handleImageUpload(event, 'note'));
         
         document.addEventListener('keydown', (event) => {
             if (document.querySelector('.modal.show') || 
-                ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+                ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
                 return;
             }
             const posView = document.getElementById('pos-view');
             const productsView = document.getElementById('products-view');
             let scrollableElement = null;
-            if (posView && posView.classList.contains('active')) {
-                const grid = document.getElementById('product-grid');
-                if (grid) scrollableElement = grid.parentElement;
-            } else if (productsView && productsView.classList.contains('active')) {
+            if (posView.classList.contains('active')) {
+                scrollableElement = document.getElementById('product-grid').parentElement;
+            } else if (productsView.classList.contains('active')) {
                 scrollableElement = productsView.querySelector('.scrollable-table-container');
             }
             if (scrollableElement) {
@@ -1142,82 +1117,74 @@
         });
 
         const productsTable = document.getElementById('products-table');
-        if (productsTable) {
-            let lastTap = 0;
-            productsTable.addEventListener('click', function(event) {
-                if (currentUserRole !== 'admin') return; 
-                const row = event.target.closest('tr');
-                if (!row) return;
-                const currentTime = new Date().getTime();
-                const tapLength = currentTime - lastTap;
-                if (tapLength < 300 && tapLength > 0) {
-                    const productId = row.dataset.id;
-                    if (productId) {
-                        handleEditClick(productId);
-                    }
-                    event.preventDefault();
+        let lastTap = 0;
+        productsTable.addEventListener('click', function(event) {
+            if (currentUserRole !== 'admin') return; 
+            const row = event.target.closest('tr');
+            if (!row) return;
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            if (tapLength < 300 && tapLength > 0) {
+                const productId = row.dataset.id;
+                if (productId) {
+                    handleEditClick(productId);
                 }
-                lastTap = currentTime;
-            });
-            productsTable.addEventListener('dblclick', function(event) {
-                if (currentUserRole !== 'admin') return; 
-                const row = event.target.closest('tr');
-                if (row) {
-                    const productId = row.dataset.id;
-                    if (productId) {
-                        handleEditClick(productId);
-                    }
+                event.preventDefault();
+            }
+            lastTap = currentTime;
+        });
+        productsTable.addEventListener('dblclick', function(event) {
+            if (currentUserRole !== 'admin') return; 
+            const row = event.target.closest('tr');
+            if (row) {
+                const productId = row.dataset.id;
+                if (productId) {
+                    handleEditClick(productId);
                 }
-            });
-        }
+            }
+        });
 
         syncInterval = setInterval(syncData, 15 * 60 * 1000); 
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('scroll', togglePosScrollButtons);
+        window.addEventListener('scroll', togglePosScrollTop);
 
-        const scannerModalEl = document.getElementById('scanner-modal');
-        if (scannerModalEl) {
-            scannerModalEl.addEventListener('hidden.bs.modal', function () {
-                if (html5QrcodeScanner) {
-                    html5QrcodeScanner.clear().catch(e => console.error(e));
-                    html5QrcodeScanner = null;
-                    const reader = document.getElementById('reader');
-                    if (reader) reader.innerHTML = '';
-                }
-                isProcessingScan = false; // Reset the lock when scanner closes
-            });
-            
-            scannerModalEl.addEventListener('shown.bs.modal', function () {
-                if (!html5QrcodeScanner) {
-                    html5QrcodeScanner = new Html5QrcodeScanner(
-                        "reader",
-                        {
-                            fps: 20, 
-                            qrbox: { width: 300, height: 120 }, 
-                            rememberLastUsedCamera: true,
-                            showTorchButtonIfSupported: true,
-                            useBarCodeDetectorIfSupported: true, 
-                            videoConstraints: {
-                                facingMode: "environment",
-                                width: { ideal: 1280 }, 
-                                height: { ideal: 720 },
-                                advanced: [{ focusMode: "continuous" }] 
-                            }
-                        },
-                        false 
-                    );
-                    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-                }
-            });
-        }
+        document.getElementById('scanner-modal').addEventListener('hidden.bs.modal', function () {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear().catch(e => console.error(e));
+                html5QrcodeScanner = null;
+                document.getElementById('reader').innerHTML = '';
+            }
+            isProcessingScan = false; // Reset the lock when scanner closes
+        });
+        
+        document.getElementById('scanner-modal').addEventListener('shown.bs.modal', function () {
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5QrcodeScanner(
+                    "reader",
+                    {
+                        fps: 20, // Increased for faster scanning attempts
+                        qrbox: { width: 300, height: 120 }, // Wider box for 1D barcodes
+                        rememberLastUsedCamera: true,
+                        showTorchButtonIfSupported: true,
+                        useBarCodeDetectorIfSupported: true, // Uses phone's native barcode API
+                        videoConstraints: {
+                            facingMode: "environment",
+                            width: { ideal: 1280 }, // Force HD resolution for sharper lines
+                            height: { ideal: 720 },
+                            advanced: [{ focusMode: "continuous" }] // Try to force auto-focus
+                        }
+                    },
+                    false // Hides verbose console logs
+                );
+                html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            }
+        });
     }
 
     function updateClock() {
-        const clockEl = document.getElementById('clock');
-        if (!clockEl) return;
         const now = new Date();
         const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-        clockEl.textContent = timeString;
+        document.getElementById('clock').textContent = timeString;
     }
 
     function loadView(viewName, data = null) {
@@ -1241,7 +1208,7 @@
             case 'logins': loadLoginsView(); break;
         }
         
-        togglePosScrollButtons();
+        togglePosScrollTop();
     }
 
     // --- VIEW-SPECIFIC LOADERS ---
@@ -1265,7 +1232,6 @@
         const startIndex = (page - 1) * ITEMS_PER_PAGE;
         const pageData = allLogins.slice(startIndex, startIndex + ITEMS_PER_PAGE);
         const tableBody = document.getElementById('logins-table');
-        if (!tableBody) return;
 
         tableBody.innerHTML = pageData.length === 0 ? '<tr><td colspan="3" class="text-center py-4">No login activity found.</td></tr>' : pageData.map(log => `<tr>
             <td class="align-middle">${log.timestamp}</td>
@@ -1278,44 +1244,31 @@
 
     function loadDashboardData(data) {
         if (!data) return;
-        
-        const elSales = document.getElementById('today-sales');
-        const elProfit = document.getElementById('today-profit');
-        const elItemsSold = document.getElementById('items-sold');
-        const elLowStock = document.getElementById('low-stock');
-        
-        if (elSales) elSales.textContent = formatNumber(data.todaySales);
-        if (elProfit) elProfit.textContent = formatNumber(data.todayProfit);
-        if (elItemsSold) elItemsSold.textContent = data.itemsSold;
-        if (elLowStock) elLowStock.textContent = data.lowStockCount;
-        
+        document.getElementById('today-sales').textContent = formatNumber(data.todaySales);
+        document.getElementById('today-profit').textContent = formatNumber(data.todayProfit);
+        document.getElementById('items-sold').textContent = data.itemsSold;
+        document.getElementById('low-stock').textContent = data.lowStockCount;
         const recentSalesBody = document.getElementById('recent-sales-table-body');
-        if (recentSalesBody) {
-            recentSalesBody.innerHTML = data.recentSales.length === 0 
-                ? '<tr><td colspan="4" class="text-center py-3">No recent sales</td></tr>' 
-                : data.recentSales.map(s => `<tr>
-                    <td class="align-middle"><img src="${s.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';"></td>
-                    <td class="align-middle">${s.item}</td>
-                    <td class="align-middle text-primary fw-bold">${formatNumber(s.price)}</td>
-                    <td class="align-middle"><span class="badge bg-success">${s.status}</span></td>
-                  </tr>`).join('');
-        }
-        
+        recentSalesBody.innerHTML = data.recentSales.length === 0 
+            ? '<tr><td colspan="4" class="text-center py-3">No recent sales</td></tr>' 
+            : data.recentSales.map(s => `<tr>
+                <td class="align-middle"><img src="${s.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';"></td>
+                <td class="align-middle">${s.item}</td>
+                <td class="align-middle text-primary fw-bold">${formatNumber(s.price)}</td>
+                <td class="align-middle"><span class="badge bg-success">${s.status}</span></td>
+              </tr>`).join('');
         const lowStockBody = document.getElementById('low-stock-items-body');
-        if (lowStockBody) {
-            lowStockBody.innerHTML = data.lowStockItems.length === 0 
-                ? '<tr><td colspan="3" class="text-center py-3">No low stock items</td></tr>'
-                : data.lowStockItems.map(item => `<tr>
-                    <td class="align-middle"><img src="${item.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';"></td>
-                    <td class="align-middle"><h6 class="m-0">${item.name}</h6></td>
-                    <td class="align-middle text-danger fw-bold">${item.stock}</td>
-                   </tr>`).join('');
-        }
+        lowStockBody.innerHTML = data.lowStockItems.length === 0 
+            ? '<tr><td colspan="3" class="text-center py-3">No low stock items</td></tr>'
+            : data.lowStockItems.map(item => `<tr>
+                <td class="align-middle"><img src="${item.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';"></td>
+                <td class="align-middle"><h6 class="m-0">${item.name}</h6></td>
+                <td class="align-middle text-danger fw-bold">${item.stock}</td>
+               </tr>`).join('');
     }
 
     function loadPosView() {
-        const invEl = document.getElementById('invoice-number');
-        if (invEl) invEl.textContent = currentInvoiceNumber;
+        document.getElementById('invoice-number').textContent = currentInvoiceNumber;
         updatePosCategories();
         filterPosProducts();
     }
@@ -1325,7 +1278,7 @@
         if (!categorySelect) return;
         
         const currentSelection = categorySelect.value;
-        const cats = new Set(allCategories || []);
+        const cats = new Set(allCategories);
         cats.add("ငွေဖြည့်ကဒ်");
 
         let optionsHtml = '<option value="all">All Categories</option>';
@@ -1343,9 +1296,7 @@
 
     function updateProductGrid(products) {
         const grid = document.getElementById('product-grid');
-        if (!grid) return;
-        
-        grid.innerHTML = (!products || products.length === 0) ? '<p class="col-12 text-center py-4 text-muted fw-bold">No products found</p>' : products.map(p => {
+        grid.innerHTML = products.length === 0 ? '<p class="col-12 text-center py-4">No products found</p>' : products.map(p => {
             let stockBadge = '';
             let cardClass = 'card pos-product-card h-100';
             
@@ -1376,8 +1327,6 @@
     // --- PRODUCTS MANAGEMENT VIEW ---
     function renderProductsTable(productsToRender) {
         const tableBody = document.getElementById('products-table');
-        if (!tableBody) return;
-        
         if (!productsToRender || productsToRender.length === 0) {
             tableBody.innerHTML = '<tr><td colspan="9" class="text-center py-4">No products found.</td></tr>';
             return;
@@ -1408,11 +1357,10 @@
     }
 
     function filterProductsTable() {
-        const searchInput = document.getElementById('products-search-input');
-        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-        let filtered = allProducts || [];
+        const searchTerm = document.getElementById('products-search-input').value.toLowerCase();
+        let filtered = allProducts;
         if (searchTerm) {
-            filtered = filtered.filter(p =>
+            filtered = allProducts.filter(p =>
                 (p.name && p.name.toLowerCase().includes(searchTerm)) ||
                 (p.id && p.id.toLowerCase().includes(searchTerm)) ||
                 (p.barcode && String(p.barcode).includes(searchTerm))
@@ -1422,10 +1370,9 @@
     }
 
     function handleProductTableScan(barcode) {
-        const product = (allProducts || []).find(p => String(p.barcode) === String(barcode));
+        const product = allProducts.find(p => String(p.barcode) === String(barcode));
         const searchInput = document.getElementById('products-search-input');
-        if (searchInput) searchInput.value = barcode;
-        
+        searchInput.value = barcode;
         if (product) {
             filterProductsTable();
             showToast(`Found: ${product.name}`);
@@ -1434,8 +1381,7 @@
             if (currentUserRole === 'admin') {
                 showConfirmModal(`Product with barcode "${barcode}" not found. Add it now?`, () => {
                     showAddProductModal();
-                    const barcodeInput = document.getElementById('product-barcode');
-                    if (barcodeInput) barcodeInput.value = barcode;
+                    document.getElementById('product-barcode').value = barcode;
                 });
             } else {
                 showToast(`Barcode ${barcode} not found.`);
@@ -1444,18 +1390,16 @@
     }
 
     function loadSalesTable(page = 1) {
-        const dateFilterInput = document.getElementById('sales-date-filter');
-        const dateFilter = dateFilterInput ? dateFilterInput.value : '';
-        let filteredData = allSalesHistory || [];
+        const dateFilter = document.getElementById('sales-date-filter').value;
+        let filteredData = allSalesHistory;
         if (dateFilter) {
             const targetDate = new Date(dateFilter).toISOString().split('T')[0];
-            filteredData = filteredData.filter(sale => new Date(sale.date).toISOString().split('T')[0] === targetDate);
+            filteredData = allSalesHistory.filter(sale => new Date(sale.date).toISOString().split('T')[0] === targetDate);
         }
         const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
         const startIndex = (page - 1) * ITEMS_PER_PAGE;
         const pageData = filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
         const tableBody = document.getElementById('sales-table');
-        if (!tableBody) return;
         
         tableBody.innerHTML = pageData.length === 0 ? '<tr><td colspan="9" class="text-center py-4">No sales found.</td></tr>' : pageData.map(sale => `<tr>
             <td><img src="${sale.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';"></td>
@@ -1497,7 +1441,7 @@
                 loadProductsTable();
                 updateProductDropdowns();
                 updateCategoryDatalist();
-                if (addProductModal) addProductModal.hide();
+                addProductModal.hide();
                 showToast(response.status);
                 hideLoading();
                 newProductImageData = null; 
@@ -1528,12 +1472,10 @@
             reader.onload = function(e) {
                 if (context === 'product') {
                     newProductImageData = e.target.result;
-                    const preview = document.getElementById('product-image-preview');
-                    if (preview) preview.src = e.target.result;
+                    document.getElementById('product-image-preview').src = e.target.result;
                 } else if (context === 'note') {
                     newNoteImageData = e.target.result;
-                    const preview = document.getElementById('note-image-preview');
-                    if (preview) preview.src = e.target.result;
+                    document.getElementById('note-image-preview').src = e.target.result;
                 }
             };
             reader.readAsDataURL(file);
@@ -1544,37 +1486,30 @@
         cameraContext = context;
         const video = document.getElementById('camera-video');
         const cameraNotice = document.getElementById('camera-notice');
-        if (cameraModal) cameraModal.show();
+        cameraModal.show();
         
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
                 .then(stream => {
-                    if (video) {
-                        video.srcObject = stream;
-                        video.style.display = 'block';
-                        if (cameraNotice) cameraNotice.style.display = 'none';
-                        video.play();
-                    }
+                    video.srcObject = stream;
+                    video.style.display = 'block';
+                    cameraNotice.style.display = 'none';
+                    video.play();
                 })
                 .catch(err => {
-                    if (cameraNotice) {
-                        cameraNotice.textContent = 'Could not access camera. Please check permissions.';
-                        cameraNotice.style.display = 'block';
-                    }
-                    if (video) video.style.display = 'none';
+                    cameraNotice.textContent = 'Could not access camera. Please check permissions.';
+                    cameraNotice.style.display = 'block';
+                    video.style.display = 'none';
                 });
         } else {
-             if (cameraNotice) {
-                 cameraNotice.textContent = 'Camera not supported on this browser.';
-                 cameraNotice.style.display = 'none';
-             }
+             cameraNotice.textContent = 'Camera not supported on this browser.';
+             cameraNotice.style.display = 'none';
         }
     }
 
     function captureImage() {
         const video = document.getElementById('camera-video');
         const canvas = document.getElementById('camera-canvas');
-        if (!video || !canvas) return;
         const context = canvas.getContext('2d');
         
         canvas.width = video.videoWidth;
@@ -1584,12 +1519,10 @@
         const imageData = canvas.toDataURL('image/jpeg');
         if (cameraContext === 'product') {
             newProductImageData = imageData;
-            const preview = document.getElementById('product-image-preview');
-            if (preview) preview.src = imageData;
+            document.getElementById('product-image-preview').src = imageData;
         } else if (cameraContext === 'note') {
             newNoteImageData = imageData;
-            const preview = document.getElementById('note-image-preview');
-            if (preview) preview.src = imageData;
+            document.getElementById('note-image-preview').src = imageData;
         }
         
         closeCamera();
@@ -1597,70 +1530,51 @@
 
     function closeCamera() {
         const video = document.getElementById('camera-video');
-        if (video && video.srcObject) {
+        if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
-            video.srcObject = null;
         }
+        video.srcObject = null;
         cameraContext = ''; 
-        if (cameraModal) cameraModal.hide();
+        cameraModal.hide();
     }
 
     // --- MODAL & HELPER FUNCTIONS ---
     function showAddProductModal() { 
         if (currentUserRole !== 'admin') return;
-        const form = document.getElementById('product-form');
-        if (form) form.reset(); 
-        
-        const idField = document.getElementById('product-id');
-        const titleField = document.getElementById('product-modal-title');
-        const preview = document.getElementById('product-image-preview');
-        
-        if (idField) idField.value = ''; 
-        if (titleField) titleField.textContent = 'Add Product'; 
-        if (preview) preview.src = 'https://placehold.co/600x400/EEE/333?text=No+Image';
-        
+        document.getElementById('product-form').reset(); 
+        document.getElementById('product-id').value = ''; 
+        document.getElementById('product-modal-title').textContent = 'Add Product'; 
+        document.getElementById('product-image-preview').src = 'https://placehold.co/600x400/EEE/333?text=No+Image';
         newProductImageData = null;
-        if (addProductModal) addProductModal.show(); 
+        addProductModal.show(); 
     }
 
     function showAddNoteModal() {
-        const form = document.getElementById('note-form');
-        if (form) form.reset();
-        
-        const preview = document.getElementById('note-image-preview');
-        if (preview) preview.src = 'https://placehold.co/600x400/EEE/333?text=No+Image';
-        
+        document.getElementById('note-form').reset();
+        document.getElementById('note-image-preview').src = 'https://placehold.co/600x400/EEE/333?text=No+Image';
         newNoteImageData = null;
-        if (addNoteModal) addNoteModal.show();
+        addNoteModal.show();
     }
 
     function openEditProductModal(p) {
         if (currentUserRole !== 'admin') return;
-        const form = document.getElementById('product-form');
-        if (form) form.reset();
-        
-        const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-        const titleField = document.getElementById('product-modal-title');
-        if (titleField) titleField.textContent = 'Edit Product';
-        
-        setVal('product-id', p.id);
-        setVal('product-category', p.category);
-        setVal('product-name', p.name);
-        setVal('product-buy-price', p.buyPrice);
-        setVal('product-sell-price', p.sellPrice);
-        setVal('product-stock', p.stock);
-        setVal('product-barcode', p.barcode || '');
-        setVal('product-comment', p.comment || '');
-        
-        const preview = document.getElementById('product-image-preview');
-        if (preview) preview.src = p.imageUrl || 'https://placehold.co/600x400/EEE/333?text=No+Image';
-        
+        document.getElementById('product-form').reset();
+        document.getElementById('product-modal-title').textContent = 'Edit Product';
+        document.getElementById('product-id').value = p.id;
+        document.getElementById('product-category').value = p.category;
+        document.getElementById('product-name').value = p.name;
+        document.getElementById('product-buy-price').value = p.buyPrice;
+        document.getElementById('product-sell-price').value = p.sellPrice;
+        document.getElementById('product-stock').value = p.stock;
+        document.getElementById('product-barcode').value = p.barcode || '';
+        document.getElementById('product-comment').value = p.comment || '';
+        document.getElementById('product-image-preview').src = p.imageUrl || 'https://placehold.co/600x400/EEE/333?text=No+Image';
         newProductImageData = null; 
-        if (addProductModal) addProductModal.show();
+        addProductModal.show();
     }
 
     function handleEditClick(productId) {
-        const product = (allProducts || []).find(p => p.id === productId);
+        const product = allProducts.find(p => p.id === productId);
         if (product) {
             openEditProductModal(product);
         } else {
@@ -1669,7 +1583,7 @@
     }
 
     function handleAddToCartClick(productId) {
-        const product = (allProducts || []).find(p => p.id === productId);
+        const product = allProducts.find(p => p.id === productId);
         if (product) {
             addToCart(product);
         } else {
@@ -1681,13 +1595,8 @@
     function showPaymentModal() {
         if (cart.length === 0) { return showToast('Cart is empty', 'error'); }
         const subtotal = cart.reduce((sum, item) => sum + (item.sellPrice * item.qty), 0);
-        
-        const discPercEl = document.getElementById('discount');
-        const discAmtEl = document.getElementById('discount-amount');
-        
-        const discountPercent = discPercEl ? parseFloat(discPercEl.value) || 0 : 0;
-        const discountAmount = discAmtEl ? parseFloat(discAmtEl.value) || 0 : 0;
-        
+        const discountPercent = parseFloat(document.getElementById('discount').value) || 0;
+        const discountAmount = parseFloat(document.getElementById('discount-amount').value) || 0;
         let total = subtotal;
         let discountText = '0';
         if (discountPercent > 0) {
@@ -1699,52 +1608,34 @@
         }
         
         total = Math.max(0, total);
-        
-        const setTxt = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
-        const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
-        
-        setTxt('modal-subtotal', formatNumber(subtotal));
-        setTxt('modal-discount', discountText);
-        setTxt('modal-total', formatNumber(total));
-        setVal('amount-received', '');
-        setTxt('change-amount', '0');
-        
-        if (paymentModal) paymentModal.show();
+        document.getElementById('modal-subtotal').textContent = formatNumber(subtotal);
+        document.getElementById('modal-discount').textContent = discountText;
+        document.getElementById('modal-total').textContent = formatNumber(total);
+        document.getElementById('amount-received').value = '';
+        document.getElementById('change-amount').textContent = '0';
+        paymentModal.show();
     }
     
     function calculateChange() {
-        const totalEl = document.getElementById('modal-total');
-        if (!totalEl) return;
-        const total = parseFloat(totalEl.textContent.replace(/,/g, ''));
+        const total = parseFloat(document.getElementById('modal-total').textContent.replace(/,/g, ''));
         const receivedInput = document.getElementById('amount-received');
-        const received = receivedInput ? (parseFloat(receivedInput.value) || 0) : 0;
+        const received = parseFloat(receivedInput.value) || 0;
         const change = received - total;
-        const changeEl = document.getElementById('change-amount');
-        if (changeEl) changeEl.textContent = formatNumber(change >= 0 ? change : 0);
+        document.getElementById('change-amount').textContent = formatNumber(change >= 0 ? change : 0);
     }
-    
     function setAmountToTotal() {
-        const totalEl = document.getElementById('modal-total');
-        if (!totalEl) return;
-        const total = parseFloat(totalEl.textContent.replace(/,/g, ''));
-        const receivedInput = document.getElementById('amount-received');
-        if (receivedInput) {
-            receivedInput.value = Math.ceil(total);
-            calculateChange();
-        }
+        const total = parseFloat(document.getElementById('modal-total').textContent.replace(/,/g, ''));
+        document.getElementById('amount-received').value = Math.ceil(total);
+        calculateChange();
     }
-    
     function addAmount(amount) {
         const receivedInput = document.getElementById('amount-received');
-        if (!receivedInput) return;
         let currentAmount = parseFloat(receivedInput.value) || 0;
         receivedInput.value = currentAmount + amount;
         calculateChange();
     }
-    
     function multiplyAmount(multiplier) {
         const receivedInput = document.getElementById('amount-received');
-        if (!receivedInput) return;
         let currentAmount = parseFloat(receivedInput.value) || 0;
         if (currentAmount > 0) {
             receivedInput.value = currentAmount * multiplier;
@@ -1753,24 +1644,16 @@
             showToast('Enter an amount first to multiply.', 'error');
         }
     }
-    
     function clearAmount() {
-        const receivedInput = document.getElementById('amount-received');
-        if (receivedInput) {
-            receivedInput.value = '';
-            calculateChange();
-        }
+        document.getElementById('amount-received').value = '';
+        calculateChange();
     }
-    
     // --- STOCK & CART LOGIC ---
     function loadPurchaseHistoryTable(page = 1) {
         const tableBody = document.getElementById('purchase-history-table');
-        if (!tableBody) return;
-        
-        const historyData = allPurchaseHistory || [];
-        const totalPages = Math.ceil(historyData.length / ITEMS_PER_PAGE);
+        const totalPages = Math.ceil(allPurchaseHistory.length / ITEMS_PER_PAGE);
         const startIndex = (page - 1) * ITEMS_PER_PAGE;
-        const pageData = historyData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        const pageData = allPurchaseHistory.slice(startIndex, startIndex + ITEMS_PER_PAGE);
         
         tableBody.innerHTML = pageData.length === 0 
             ? '<tr><td colspan="6" class="text-center py-4">No purchase history found.</td></tr>' 
@@ -1788,12 +1671,9 @@
     
     function loadLostStockTable(page = 1) {
         const tableBody = document.getElementById('lost-stock-table');
-        if (!tableBody) return;
-        
-        const historyData = allLostStockHistory || [];
-        const totalPages = Math.ceil(historyData.length / ITEMS_PER_PAGE);
+        const totalPages = Math.ceil(allLostStockHistory.length / ITEMS_PER_PAGE);
         const startIndex = (page - 1) * ITEMS_PER_PAGE;
-        const pageData = historyData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        const pageData = allLostStockHistory.slice(startIndex, startIndex + ITEMS_PER_PAGE);
         
         tableBody.innerHTML = pageData.length === 0 
             ? '<tr><td colspan="4" class="text-center py-4">No lost stock history found.</td></tr>' 
@@ -1808,18 +1688,16 @@
     }
     
     function loadPaymentsTable(page = 1) {
-        const dateFilterInput = document.getElementById('payments-date-filter');
-        const dateFilter = dateFilterInput ? dateFilterInput.value : '';
-        let filteredData = allPaymentsHistory || []; 
+        const dateFilter = document.getElementById('payments-date-filter').value;
+        let filteredData = allPaymentsHistory; 
         if (dateFilter) {
             const targetDate = new Date(dateFilter).toISOString().split('T')[0];
-            filteredData = filteredData.filter(p => new Date(p.date).toISOString().split('T')[0] === targetDate);
+            filteredData = allPaymentsHistory.filter(p => new Date(p.date).toISOString().split('T')[0] === targetDate);
         }
         const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
         const startIndex = (page - 1) * ITEMS_PER_PAGE;
         const pageData = filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
         const tableBody = document.getElementById('payments-table');
-        if (!tableBody) return;
         
         tableBody.innerHTML = pageData.length === 0 
             ? '<tr><td colspan="8" class="text-center py-4">No payments found.</td></tr>' 
@@ -1839,9 +1717,7 @@
     
     function loadNotes() {
         const container = document.getElementById('notes-container');
-        if (!container) return;
-        const notesData = allNotes || [];
-        container.innerHTML = notesData.length === 0 ? '<p class="col-12 text-center py-4">No notes yet.</p>' : notesData.map(note => `
+        container.innerHTML = allNotes.length === 0 ? '<p class="col-12 text-center py-4">No notes yet.</p>' : allNotes.map(note => `
             <div class="col">
                 <div class="card h-100 shadow-sm">
                     ${note.imageUrl ? `<img src="${note.imageUrl}" class="card-img-top" alt="Note Image" style="height: 200px; object-fit: cover;" onerror="this.onerror=null;this.src='https://placehold.co/600x400/EEE/333?text=Img+Error';">` : ''}
@@ -1859,28 +1735,20 @@
     
     function savePurchase() {
         const selectElement = document.getElementById('purchase-product');
-        if (!selectElement) return;
         const selectedOption = selectElement.options[selectElement.selectedIndex];
         const currentBuyPrice = selectedOption ? parseFloat(selectedOption.dataset.buyPrice) : 0;
         
-        const buyPriceInput = document.getElementById('purchase-buy-price');
-        let enteredBuyPrice = buyPriceInput ? parseFloat(buyPriceInput.value) : NaN;
+        let enteredBuyPrice = parseFloat(document.getElementById('purchase-buy-price').value);
         if (isNaN(enteredBuyPrice)) enteredBuyPrice = currentBuyPrice;
-
-        const dateInput = document.getElementById('purchase-date');
-        const qtyInput = document.getElementById('purchase-qty');
-        const remarksInput = document.getElementById('purchase-remarks');
-        const updatePriceCb = document.getElementById('update-default-buy-price');
 
         const purchaseData = {
             productId: selectElement.value,
-            date: dateInput ? dateInput.value : '',
+            date: document.getElementById('purchase-date').value,
             buyPrice: enteredBuyPrice,
-            qty: qtyInput ? parseInt(qtyInput.value) : 0,
-            remarks: remarksInput ? remarksInput.value : '',
-            updateDefaultBuyPrice: updatePriceCb ? updatePriceCb.checked : false
+            qty: parseInt(document.getElementById('purchase-qty').value),
+            remarks: document.getElementById('purchase-remarks').value,
+            updateDefaultBuyPrice: document.getElementById('update-default-buy-price').checked
         };
-        
         if (!purchaseData.productId || !(purchaseData.qty > 0)) { return showToast('Product and a valid quantity are required.', 'error'); }
         showLoading();
         
@@ -1890,7 +1758,7 @@
                 allPurchaseHistory = response.purchaseHistory;
                 loadPurchaseHistoryTable(1);
                 updateProductDropdowns();
-                if (addPurchaseModal) addPurchaseModal.hide();
+                addPurchaseModal.hide();
                 showToast(response.status);
                 hideLoading();
             })
@@ -1898,18 +1766,12 @@
     }
 
     function saveLostStock() {
-        const prodSelect = document.getElementById('lost-stock-product');
-        const dateInput = document.getElementById('lost-stock-date');
-        const qtyInput = document.getElementById('lost-stock-qty');
-        const remarksInput = document.getElementById('lost-stock-remarks');
-
         const lostStockData = {
-            productId: prodSelect ? prodSelect.value : '',
-            date: dateInput ? dateInput.value : '',
-            qty: qtyInput ? parseInt(qtyInput.value) : 0,
-            remarks: remarksInput ? remarksInput.value : ''
+            productId: document.getElementById('lost-stock-product').value,
+            date: document.getElementById('lost-stock-date').value,
+            qty: parseInt(document.getElementById('lost-stock-qty').value),
+            remarks: document.getElementById('lost-stock-remarks').value
         };
-        
         if (!lostStockData.productId || !(lostStockData.qty > 0)) {
             return showToast('Product and a valid quantity are required.', 'error');
         }
@@ -1924,7 +1786,7 @@
                 allLostStockHistory = response.lostStockHistory;
                 updateProductDropdowns();
                 loadLostStockTable(1);
-                if (lostStockModal) lostStockModal.hide();
+                lostStockModal.hide();
                 showToast(response.status);
                 hideLoading();
             })
@@ -1935,20 +1797,12 @@
     }
 
     function processPayment(shouldPrint = false) {
-        const totalEl = document.getElementById('modal-total');
-        if (!totalEl) return;
-        const total = parseFloat(totalEl.textContent.replace(/,/g, ''));
-        
-        const recInput = document.getElementById('amount-received');
-        const received = recInput ? (parseFloat(recInput.value) || 0) : 0;
-        
+        const total = parseFloat(document.getElementById('modal-total').textContent.replace(/,/g, ''));
+        const received = parseFloat(document.getElementById('amount-received').value) || 0;
         if (received < total) { return showToast('Amount received is less than total', 'error'); }
         
-        const discPercEl = document.getElementById('discount');
-        const discAmtEl = document.getElementById('discount-amount');
-        const discountPercent = discPercEl ? (parseFloat(discPercEl.value) || 0) : 0;
-        const discountAmount = discAmtEl ? (parseFloat(discAmtEl.value) || 0) : 0;
-        
+        const discountPercent = parseFloat(document.getElementById('discount').value) || 0;
+        const discountAmount = parseFloat(document.getElementById('discount-amount').value) || 0;
         const saleData = { 
             invoiceNo: currentInvoiceNumber, 
             date: new Date().toISOString(), 
@@ -1987,18 +1841,17 @@
                 }
                 
                 cart = [];
-                if (discPercEl) discPercEl.value = '';
-                if (discAmtEl) discAmtEl.value = '';
+                document.getElementById('discount').value = '';
+                document.getElementById('discount-amount').value = '';
                 updateCartDisplay();
                 
                 loadPosView();
-                if (paymentModal) paymentModal.hide();
+                paymentModal.hide();
                 showToast(response.status);
                 hideLoading();
                 
                 if (shouldPrint) {
-                    const printContainer = document.getElementById('print-receipt-container');
-                    if (printContainer) printContainer.innerHTML = generateReceiptHTML(saleData, received, received - total);
+                    document.getElementById('print-receipt-container').innerHTML = generateReceiptHTML(saleData, received, received - total);
                     setTimeout(() => { window.print(); }, 500);
                 }
             })
@@ -2059,15 +1912,11 @@
     }
 
     function saveNote() {
-        const titleEl = document.getElementById('note-title');
-        const contentEl = document.getElementById('note-content');
-        
         const noteData = {
-            title: titleEl ? titleEl.value : '',
-            content: contentEl ? contentEl.value : '',
+            title: document.getElementById('note-title').value,
+            content: document.getElementById('note-content').value,
             imageData: newNoteImageData
         };
-        
         if (!noteData.title && !noteData.content) { return showToast('Note cannot be empty', 'error'); }
         showLoading();
         
@@ -2075,7 +1924,7 @@
             .then(response => { 
                 allNotes = response.notes;
                 loadNotes();
-                if (addNoteModal) addNoteModal.hide();
+                addNoteModal.hide();
                 showToast(response.status); 
                 hideLoading(); 
                 newNoteImageData = null; 
@@ -2099,11 +1948,9 @@
     
     function generateReport() {
         showLoading();
-        const repTypeEl = document.getElementById('report-type');
-        const reportType = repTypeEl ? repTypeEl.value : 'daily';
+        const reportType = document.getElementById('report-type').value;
         const reports = {};
-        
-        (allPaymentsHistory || []).forEach(p => {
+        allPaymentsHistory.forEach(p => {
             if (!p.date) return;
             const date = new Date(p.date);
             let key;
@@ -2116,8 +1963,7 @@
             reports[key].totalProfit += p.profit || 0;
             reports[key].itemsSold += p.itemsSold || 0;
         });
-        
-        (allPurchaseHistory || []).forEach(purchase => {
+        allPurchaseHistory.forEach(purchase => {
             if (!purchase.date) return;
             const date = new Date(purchase.date);
             let key;
@@ -2129,20 +1975,17 @@
         });
         
         const data = Object.values(reports).sort((a, b) => new Date(b.date) - new Date(a.date));
-        const headEl = document.getElementById('report-table-head');
-        if (headEl) headEl.innerHTML = `<tr><th>Date</th><th>Items Sold</th><th>Total Sales</th><th class="admin-only">Total Purchases</th><th class="admin-only">Total Profit</th></tr>`;
-        
+        document.getElementById('report-table-head').innerHTML = `<tr><th>Date</th><th>Items Sold</th><th>Total Sales</th><th class="admin-only">Total Purchases</th><th class="admin-only">Total Profit</th></tr>`;
         const tableBody = document.getElementById('report-table');
-        if (tableBody) {
-            tableBody.innerHTML = data.length === 0 ? '<tr><td colspan="5" class="text-center py-4">No data for this report.</td></tr>' 
-                : data.map(row => `<tr>
-                    <td>${row.date}</td>
-                    <td>${row.itemsSold}</td>
-                    <td>${formatNumber(row.totalSales)}</td>
-                    <td class="admin-only">${formatNumber(row.totalPurchases)}</td>
-                    <td class="text-success fw-bold admin-only">${formatNumber(row.totalProfit)}</td>
-                  </tr>`).join('');
-        }
+        
+        tableBody.innerHTML = data.length === 0 ? '<tr><td colspan="5" class="text-center py-4">No data for this report.</td></tr>' 
+            : data.map(row => `<tr>
+                <td>${row.date}</td>
+                <td>${row.itemsSold}</td>
+                <td>${formatNumber(row.totalSales)}</td>
+                <td class="admin-only">${formatNumber(row.totalPurchases)}</td>
+                <td class="text-success fw-bold admin-only">${formatNumber(row.totalProfit)}</td>
+              </tr>`).join('');
         hideLoading();
     }
     
@@ -2160,8 +2003,6 @@
     
     function updateCartDisplay() {
         const cartContainer = document.getElementById('cart-items');
-        if (!cartContainer) return;
-        
         if (cart.length === 0) {
             cartContainer.innerHTML = '<div class="text-center text-muted p-4"><ion-icon name="cart-outline" style="font-size: 3rem;"></ion-icon><p>Cart is empty</p></div>';
         } else {
@@ -2187,18 +2028,17 @@
         const subtotal = cart.reduce((sum, item) => sum + (item.sellPrice * item.qty), 0);
         const discountPercentInput = document.getElementById('discount');
         const discountAmountInput = document.getElementById('discount-amount');
-        
         let discountPercent = 0;
         let discountAmount = 0;
         if (discountType === 'percent') {
-            if (discountAmountInput) discountAmountInput.value = '';
-            discountPercent = discountPercentInput ? (parseFloat(discountPercentInput.value) || 0) : 0;
+            discountAmountInput.value = '';
+            discountPercent = parseFloat(discountPercentInput.value) || 0;
         } else if (discountType === 'amount') {
-            if (discountPercentInput) discountPercentInput.value = '';
-            discountAmount = discountAmountInput ? (parseFloat(discountAmountInput.value) || 0) : 0;
+            discountPercentInput.value = '';
+            discountAmount = parseFloat(discountAmountInput.value) || 0;
         } else {
-            discountPercent = discountPercentInput ? (parseFloat(discountPercentInput.value) || 0) : 0;
-            discountAmount = discountAmountInput ? (parseFloat(discountAmountInput.value) || 0) : 0;
+            discountPercent = parseFloat(discountPercentInput.value) || 0;
+            discountAmount = parseFloat(discountAmountInput.value) || 0;
         }
         let total = subtotal;
         if (discountPercent > 0) {
@@ -2208,17 +2048,15 @@
         }
         
         total = Math.max(0, total);
-        const subtotalEl = document.getElementById('subtotal');
-        const totalEl = document.getElementById('total');
-        if (subtotalEl) subtotalEl.textContent = formatNumber(subtotal);
-        if (totalEl) totalEl.textContent = formatNumber(total);
+        document.getElementById('subtotal').textContent = formatNumber(subtotal);
+        document.getElementById('total').textContent = formatNumber(total);
     }
     
     function updateCartItemQty(index, qty) {
         qty = parseInt(qty);
         if (qty <= 0) { return removeCartItem(index); }
-        const product = (allProducts || []).find(p => p.id === cart[index].id);
-        if (product && qty > product.stock) {
+        const product = allProducts.find(p => p.id === cart[index].id);
+        if (qty > product.stock) {
             showToast('Not enough stock', 'error');
             cart[index].qty = product.stock;
         } else {
@@ -2233,23 +2071,18 @@
         if(cart.length === 0) return;
         showConfirmModal('Are you sure you want to clear the cart?', () => {
             cart = [];
-            const discEl = document.getElementById('discount');
-            const discAmtEl = document.getElementById('discount-amount');
-            if (discEl) discEl.value = '';
-            if (discAmtEl) discAmtEl.value = '';
+            document.getElementById('discount').value = '';
+            document.getElementById('discount-amount').value = '';
             updateCartDisplay();
             showToast('Cart cleared.');
         });
     }
     
     function filterProductDropdown(inputId, selectId) {
-        const inputEl = document.getElementById(inputId);
+        const searchTerm = document.getElementById(inputId).value.toLowerCase();
         const selectElement = document.getElementById(selectId);
-        if (!inputEl || !selectElement) return;
         
-        const searchTerm = inputEl.value.toLowerCase();
-        
-        const filtered = (allProducts || []).filter(p =>
+        const filtered = allProducts.filter(p =>
             (p.name && p.name.toLowerCase().includes(searchTerm)) ||
             (p.id && p.id.toLowerCase().includes(searchTerm)) ||
             (p.barcode && String(p.barcode).includes(searchTerm))
@@ -2265,44 +2098,27 @@
     }
     
     function showAddPurchaseModal() {
-        const form = document.getElementById('purchase-form');
-        if (form) form.reset();
-        
-        const searchInput = document.getElementById('purchase-search-input');
-        if (searchInput) searchInput.value = ''; 
-        
+        document.getElementById('purchase-form').reset();
+        document.getElementById('purchase-search-input').value = ''; 
         updateProductDropdowns();
-        
-        const dateInput = document.getElementById('purchase-date');
-        if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
-        
-        const stockEl = document.getElementById('purchase-current-stock');
-        const priceEl = document.getElementById('purchase-current-buy-price');
-        if (stockEl) stockEl.textContent = 'N/A';
-        if (priceEl) priceEl.textContent = 'N/A';
-        
-        if (addPurchaseModal) addPurchaseModal.show();
+        document.getElementById('purchase-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('purchase-current-stock').textContent = 'N/A';
+        document.getElementById('purchase-current-buy-price').textContent = 'N/A';
+        addPurchaseModal.show();
     }
     
     function showLostStockModal() {
-        const form = document.getElementById('lost-stock-form');
-        if (form) form.reset();
-        
-        const searchInput = document.getElementById('lost-stock-search-input');
-        if (searchInput) searchInput.value = ''; 
-        
+        document.getElementById('lost-stock-form').reset();
+        document.getElementById('lost-stock-search-input').value = ''; 
         updateProductDropdowns();
-        
-        const dateInput = document.getElementById('lost-stock-date');
-        if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
-        
-        if (lostStockModal) lostStockModal.show();
+        document.getElementById('lost-stock-date').value = new Date().toISOString().split('T')[0];
+        lostStockModal.show();
     }
     
     function updateProductDropdowns() {
         const purchaseDropdown = document.getElementById('purchase-product');
         const lostStockDropdown = document.getElementById('lost-stock-product');
-        const optionsHtml = '<option value="">Select Product</option>' + (allProducts || []).map(p => `<option value="${p.id}" data-buy-price="${p.buyPrice}" data-stock="${p.stock}">${p.name} (Stock: ${p.stock})</option>`).join('');
+        const optionsHtml = '<option value="">Select Product</option>' + allProducts.map(p => `<option value="${p.id}" data-buy-price="${p.buyPrice}" data-stock="${p.stock}">${p.name} (Stock: ${p.stock})</option>`).join('');
         
         if(purchaseDropdown) purchaseDropdown.innerHTML = optionsHtml;
         if(lostStockDropdown) lostStockDropdown.innerHTML = optionsHtml;
@@ -2310,49 +2126,39 @@
     
     function updateCategoryDatalist() {
         const datalist = document.getElementById('category-datalist');
-        if (datalist) datalist.innerHTML = (allCategories || []).map(c => `<option value="${c}">`).join('');
+        datalist.innerHTML = allCategories.map(c => `<option value="${c}">`).join('');
     }
     
     function updatePurchaseModalDetails(selectElement) {
         const selectedOption = selectElement.options[selectElement.selectedIndex];
         
-        const buyPriceInput = document.getElementById('purchase-buy-price');
-        const currentStockEl = document.getElementById('purchase-current-stock');
-        const currentBuyPriceEl = document.getElementById('purchase-current-buy-price');
-        
         if (selectedOption && selectedOption.value) {
-            if (buyPriceInput) buyPriceInput.value = selectedOption.dataset.buyPrice;
-            if (currentStockEl) currentStockEl.textContent = selectedOption.dataset.stock;
-            if (currentBuyPriceEl) currentBuyPriceEl.textContent = formatNumber(parseFloat(selectedOption.dataset.buyPrice));
+            document.getElementById('purchase-buy-price').value = selectedOption.dataset.buyPrice;
+            document.getElementById('purchase-current-stock').textContent = selectedOption.dataset.stock;
+            document.getElementById('purchase-current-buy-price').textContent = formatNumber(parseFloat(selectedOption.dataset.buyPrice));
         } else {
-            if (buyPriceInput) buyPriceInput.value = '';
-            if (currentStockEl) currentStockEl.textContent = 'N/A';
-            if (currentBuyPriceEl) currentBuyPriceEl.textContent = 'N/A';
+            document.getElementById('purchase-buy-price').value = '';
+            document.getElementById('purchase-current-stock').textContent = 'N/A';
+            document.getElementById('purchase-current-buy-price').textContent = 'N/A';
         }
     }
     
     function showConfirmModal(message, onConfirm) {
-        const textEl = document.getElementById('confirm-modal-text');
-        const btnEl = document.getElementById('confirm-modal-btn');
-        if (textEl) textEl.textContent = message;
+        document.getElementById('confirm-modal-text').textContent = message;
         confirmCallback = onConfirm;
-        if (btnEl) {
-            btnEl.onclick = () => {
-                if (typeof confirmCallback === 'function') confirmCallback();
-                if (confirmModal) confirmModal.hide();
-            };
-        }
-        if (confirmModal) confirmModal.show();
+        document.getElementById('confirm-modal-btn').onclick = () => {
+            if (typeof confirmCallback === 'function') confirmCallback();
+            confirmModal.hide();
+        };
+        confirmModal.show();
     }
 
     function filterPosProducts() {
-        const searchInput = document.getElementById('product-search');
-        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-        
+        const searchTerm = document.getElementById('product-search').value.toLowerCase();
         const categorySelect = document.getElementById('pos-category-select');
         const category = categorySelect ? categorySelect.value : 'all';
 
-        let filtered = allProducts || []; 
+        let filtered = allProducts; 
         if (category !== 'all') {
             filtered = filtered.filter(p => p.category === category);
         }
@@ -2368,7 +2174,6 @@
     
     function exportReport() {
         const table = document.getElementById('report-table-export');
-        if (!table) return;
         let csvContent = "data:text/csv;charset=utf-8,";
         csvContent += Array.from(table.rows).map(r => Array.from(r.cells).map(c => `"${c.innerText}"`).join(',')).join('\n');
         const encodedUri = encodeURI(csvContent);
@@ -2382,12 +2187,11 @@
     
     function handleProductSearch(term) {
         if(!term) return;
-        const product = (allProducts || []).find(p => String(p.barcode) === String(term));
+        const product = allProducts.find(p => String(p.barcode) === String(term));
         if (product) {
             if (product.stock > 0) {
                 addToCart(product);
-                const searchInput = document.getElementById('product-search');
-                if (searchInput) searchInput.value = '';
+                document.getElementById('product-search').value = '';
             } else {
                 showToast('Product is out of stock.', 'error');
             }
@@ -2395,8 +2199,7 @@
             if (currentUserRole === 'admin') {
                 showConfirmModal(`Product with barcode "${term}" not found. Add it now?`, () => {
                     showAddProductModal();
-                    const barcodeInput = document.getElementById('product-barcode');
-                    if (barcodeInput) barcodeInput.value = term;
+                    document.getElementById('product-barcode').value = term;
                 });
             } else {
                 showToast(`Barcode ${term} not found.`, 'error');
@@ -2406,56 +2209,48 @@
     
     function handlePurchaseSearch(searchTerm) {
         filterProductDropdown('purchase-search-input', 'purchase-product');
-        const product = (allProducts || []).find(p => String(p.barcode) === String(searchTerm));
+        const product = allProducts.find(p => String(p.barcode) === String(searchTerm));
         if (product) {
             const selectElement = document.getElementById('purchase-product');
-            if (selectElement) {
-                selectElement.value = product.id;
-                updatePurchaseModalDetails(selectElement);
-            }
+            selectElement.value = product.id;
+            updatePurchaseModalDetails(selectElement);
             showToast(`Selected: ${product.name}`);
         }
     }
     
     function handleLostStockSearch(searchTerm) {
         filterProductDropdown('lost-stock-search-input', 'lost-stock-product');
-        const product = (allProducts || []).find(p => String(p.barcode) === String(searchTerm));
+        const product = allProducts.find(p => String(p.barcode) === String(searchTerm));
         if (product) {
-            const selectElement = document.getElementById('lost-stock-product');
-            if (selectElement) selectElement.value = product.id;
+            document.getElementById('lost-stock-product').value = product.id;
             showToast(`Selected: ${product.name}`);
         }
     }
 
     function showBarcodeScanner(context) {
         currentScannerContext = context;
-        const resEl = document.getElementById('scanner-result');
-        if (resEl) resEl.innerHTML = '';
-        if (scannerModal) scannerModal.show();
+        document.getElementById('scanner-result').innerHTML = '';
+        scannerModal.show();
     }
 
     function onScanSuccess(decodedText, decodedResult) {
         if (isProcessingScan) return; 
         isProcessingScan = true; 
 
-        const resEl = document.getElementById('scanner-result');
-        if (resEl) resEl.innerHTML = `<div class="alert alert-success m-0 p-2">${decodedText}</div>`;
+        document.getElementById('scanner-result').innerHTML = `<div class="alert alert-success m-0 p-2">${decodedText}</div>`;
         
         if (currentScannerContext === 'pos') {
             handleProductSearch(decodedText);
         } else if (currentScannerContext === 'purchase') {
-            const searchInput = document.getElementById('purchase-search-input');
-            if (searchInput) searchInput.value = decodedText;
+            document.getElementById('purchase-search-input').value = decodedText;
             handlePurchaseSearch(decodedText);
         } else if (currentScannerContext === 'productForm') {
-            const barcodeInput = document.getElementById('product-barcode');
-            if (barcodeInput) barcodeInput.value = decodedText;
+            document.getElementById('product-barcode').value = decodedText;
             showToast('Barcode captured!');
         } else if (currentScannerContext === 'products') {
             handleProductTableScan(decodedText);
         } else if (currentScannerContext === 'lostStock') {
-            const lostInput = document.getElementById('lost-stock-search-input');
-            if (lostInput) lostInput.value = decodedText;
+            document.getElementById('lost-stock-search-input').value = decodedText;
             handleLostStockSearch(decodedText);
         }
         
@@ -2465,12 +2260,11 @@
     function onScanFailure(error) { }
 
     function stopScanner() {
-        if (scannerModal) scannerModal.hide();
+        scannerModal.hide();
     }
 
     function renderPagination(containerId, currentPage, totalPages, funcName) {
         const container = document.getElementById(containerId);
-        if (!container) return;
         container.innerHTML = '';
         if (totalPages <= 1) return;
         
@@ -2482,7 +2276,6 @@
     }
     
     function showLoading() { 
-        if (document.getElementById('loading-spinner')) return; // Avoid duplicates
         const spinner = document.createElement('div');
         spinner.id = 'loading-spinner';
         spinner.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(255,255,255,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
@@ -2542,8 +2335,6 @@
         const statusText = document.getElementById('sync-status-text');
         const statusDot = document.querySelector('#sync-status .dot');
         
-        if (!statusText || !statusDot) return;
-
         statusDot.className = 'dot'; 
         switch(status) {
             case 'syncing':
@@ -2576,13 +2367,13 @@
         
         apiCall('getInitialData')
             .then(data => {
-                allProducts = data?.products || [];
-                allCategories = data?.categories || [];
-                allNotes = data?.notes || [];
-                allSalesHistory = data?.salesHistory || [];
-                allPaymentsHistory = data?.paymentsHistory || [];
-                allPurchaseHistory = data?.purchaseHistory || [];
-                allLostStockHistory = data?.lostStockHistory || [];
+                allProducts = data.products || [];
+                allCategories = data.categories || [];
+                allNotes = data.notes || [];
+                allSalesHistory = data.salesHistory || [];
+                allPaymentsHistory = data.paymentsHistory || [];
+                allPurchaseHistory = data.purchaseHistory || [];
+                allLostStockHistory = data.lostStockHistory || [];
                 
                 updateSyncStatus('success', new Date().toLocaleTimeString());
                 isSyncing = false;
@@ -2603,7 +2394,7 @@
         
         switch(viewName) {
             case 'dashboard': 
-                apiCall('getDashboardData').then(loadDashboardData).catch(()=>{});
+                apiCall('getDashboardData').then(loadDashboardData);
                 break;
             case 'pos': loadPosView(); break;
             case 'products': loadProductsTable(); break;
@@ -2619,16 +2410,16 @@
         }
     }
 
-    // --- SCROLL TO TOP/BOTTOM (POS) ---
-    function togglePosScrollButtons() {
+    // --- SCROLL TO TOP (POS) ---
+    function togglePosScrollTop() {
         const posView = document.getElementById('pos-view');
-        const upBtn = document.getElementById('posScrollTopBtn');
-        const downBtn = document.getElementById('posScrollBottomBtn');
-        if (!posView || !upBtn || !downBtn) return;
+        const btn = document.getElementById('posScrollTopBtn');
+        if (!posView || !btn) return;
         
+        // Hide button if POS view is not active
         if (!posView.classList.contains('active')) {
-            upBtn.classList.add('d-none'); upBtn.classList.remove('d-flex');
-            downBtn.classList.add('d-none'); downBtn.classList.remove('d-flex');
+            btn.classList.add('d-none');
+            btn.classList.remove('d-flex');
             return;
         }
 
@@ -2636,24 +2427,13 @@
         const windowScroll = window.scrollY || document.documentElement.scrollTop;
         const divScroll = scrollArea ? scrollArea.scrollTop : 0;
 
-        // Up button logic
+        // Show button if scrolled down > 150px in either window or scroll box
         if (windowScroll > 150 || divScroll > 150) {
-            upBtn.classList.remove('d-none'); upBtn.classList.add('d-flex');
+            btn.classList.remove('d-none');
+            btn.classList.add('d-flex');
         } else {
-            upBtn.classList.add('d-none'); upBtn.classList.remove('d-flex');
-        }
-
-        // Down button logic
-        const maxDivScroll = scrollArea ? (scrollArea.scrollHeight - scrollArea.clientHeight) : 0;
-        const maxWindowScroll = document.documentElement.scrollHeight - window.innerHeight;
-        
-        const nearBottomDiv = scrollArea && (divScroll >= maxDivScroll - 50);
-        const nearBottomWindow = (windowScroll >= maxWindowScroll - 50);
-
-        if ((maxDivScroll > 10 && !nearBottomDiv) || (maxWindowScroll > 10 && !nearBottomWindow)) {
-            downBtn.classList.remove('d-none'); downBtn.classList.add('d-flex');
-        } else {
-            downBtn.classList.add('d-none'); downBtn.classList.remove('d-flex');
+            btn.classList.add('d-none');
+            btn.classList.remove('d-flex');
         }
     }
 
@@ -2663,14 +2443,6 @@
             scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
         }
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function scrollToBottomPos() {
-        const scrollArea = document.getElementById('pos-product-scroll-area');
-        if (scrollArea) {
-            scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' });
-        }
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }
 
     // --- DARK MODE LOGIC ---
