@@ -1,0 +1,2448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KSM Mobile POS</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; overflow-x: hidden; }
+        
+        /* Layout Structure */
+        .navigation { position: fixed; width: 250px; height: 100%; background: #212529; color: white; transition: 0.3s; z-index: 1000; }
+        .navigation.active { width: 70px; }
+        .navigation ul { list-style: none; padding: 0; margin-top: 60px; }
+        .navigation ul li { position: relative; width: 100%; padding: 10px 20px; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+        .navigation ul li:hover, .navigation ul li.hovered { background: #0d6efd; }
+        .navigation ul li ion-icon { font-size: 1.5rem; vertical-align: middle; margin-right: 15px; }
+        .navigation .title { display: inline-block; vertical-align: middle; }
+        .navigation.active .title { display: none; }
+        
+        .main { position: absolute; width: calc(100% - 250px); left: 250px; min-height: 100vh; background: #f8f9fa; transition: 0.3s; }
+        .main.active { width: calc(100% - 70px); left: 70px; }
+        
+        /* Topbar */
+        .topbar { width: 100%; height: 60px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .toggle { font-size: 1.5rem; cursor: pointer; }
+        
+        /* Views */
+        .view { display: none; padding: 20px; animation: fadeIn 0.3s; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Custom UI Elements */
+        .product-img-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 5px; }
+        .pos-product-card { position: relative; cursor: pointer; transition: transform 0.2s; border: none; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .pos-product-card:hover { transform: translateY(-5px); border: 1px solid #0d6efd; }
+        .pos-product-img { width: 100%; height: 150px; object-fit: cover; border-top-left-radius: var(--bs-card-border-radius); border-top-right-radius: var(--bs-card-border-radius); }
+        .pos-product-details { padding: 10px; }
+        .pos-product-name { font-weight: bold; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pos-product-price { color: #0d6efd; font-weight: bold; }
+        .pos-product-stock { font-size: 0.8rem; color: #6c757d; }
+        .scrollable-table-container { max-height: 65vh; overflow-y: auto; }
+        
+        /* Stock Notifications */
+        .out-of-stock { opacity: 0.5; pointer-events: none; filter: grayscale(80%); }
+        .stock-badge { position: absolute; top: 8px; right: 8px; z-index: 2; padding: 4px 8px; font-size: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        
+        /* Status Dot */
+        .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .dot.syncing { background-color: #ffc107; animation: blink 1s infinite; }
+        .dot.success { background-color: #198754; }
+        .dot.error { background-color: #dc3545; }
+        @keyframes blink { 50% { opacity: 0; } }
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navigation { left: -250px; }
+            .navigation.active { left: 0; width: 250px; }
+            .navigation.active .title { display: inline-block; }
+            .main { width: 100%; left: 0; }
+            .main.active { left: 0; }
+            .pos-product-img { height: 100px; }
+        }
+        
+        /* 58mm Thermal Printer Styles - Optimized for Xprinter XP-58IIH */
+        #print-receipt-container { display: none; }
+        @media print {
+            body > *:not(#print-receipt-container) { display: none !important; }
+            #print-receipt-container { 
+                display: block !important; 
+                width: 48mm; /* The actual printable area of 58mm paper */
+                max-width: 48mm;
+                margin: 0; 
+                padding: 0; 
+                font-family: monospace, sans-serif; 
+                color: #000; 
+                font-size: 12px;
+                background: #fff;
+                overflow: hidden;
+            }
+            @page { 
+                size: 58mm auto; 
+                margin: 0mm; 
+            }
+            /* Force overflow visible so modal-open class doesn't cut off long receipts */
+            body, body.modal-open, html { 
+                background: #fff !important; 
+                margin: 0 !important; 
+                padding: 0 !important; 
+                overflow: visible !important; 
+                height: auto !important; 
+            }
+        }
+
+        /* Scroll To Top Button Transition */
+        #posScrollTopBtn {
+            transition: opacity 0.3s ease-in-out, transform 0.2s;
+        }
+        #posScrollTopBtn:hover {
+            transform: translateY(-3px);
+        }
+
+        /* --- Dark Mode Styles --- */
+        body.dark-mode { background-color: #212529; color: #f8f9fa; }
+        body.dark-mode .main { background: #212529; }
+        body.dark-mode .topbar { background: #2c3034; color: #f8f9fa; border-bottom: 1px solid #373b3e; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+        body.dark-mode .card, 
+        body.dark-mode .card-header.bg-white, 
+        body.dark-mode .card-footer.bg-white { background-color: #2c3034 !important; color: #f8f9fa; border-color: #373b3e; }
+        body.dark-mode #pos-product-scroll-area { background-color: #2c3034 !important; }
+        body.dark-mode .pos-product-card { background-color: #343a40; border-color: #495057; }
+        body.dark-mode .bg-light { background-color: #343a40 !important; }
+        body.dark-mode .text-muted { color: #adb5bd !important; }
+        body.dark-mode .border-bottom, body.dark-mode .border-top { border-color: #495057 !important; }
+        body.dark-mode .table-light th { background-color: #343a40; color: #f8f9fa; border-color: #495057; }
+
+        /* --- Login & Role-Based UI Styles --- */
+        body.logged-out .navigation, 
+        body.logged-out .main, 
+        body.logged-out #posScrollTopBtn { display: none !important; }
+        
+        #login-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8f9fa; z-index: 9999; align-items: center; justify-content: center; }
+        body.logged-out #login-screen { display: flex !important; }
+        .login-card { background: white; padding: 40px 30px; border-radius: 15px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        
+        body.dark-mode #login-screen { background: #212529; }
+        body.dark-mode .login-card { background: #2c3034; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+        /* Hides admin elements for workers */
+        body.role-worker .admin-only { display: none !important; }
+    </style>
+</head>
+<body class="logged-out">
+
+    <!-- Login Screen -->
+    <div id="login-screen">
+        <div class="login-card text-center" id="login-card-container">
+            <img src="https://cdn.jsdelivr.net/gh/loneeddy/imglink@main/KSMm.png" alt="KSM Mobile" style="max-height: 60px; margin-bottom: 25px;">
+            
+            <!-- Login Form -->
+            <div id="login-form-wrapper">
+                <h4 class="mb-4 fw-bold">POS System Login</h4>
+                <form id="login-form" onsubmit="handleLogin(event)">
+                    <div class="mb-3 text-start">
+                        <label class="form-label fw-semibold">Username</label>
+                        <input type="text" id="login-username" class="form-control form-control-lg" placeholder="Enter username" required>
+                    </div>
+                    <div class="mb-4 text-start">
+                        <label class="form-label fw-semibold">Password</label>
+                        <input type="password" id="login-password" class="form-control form-control-lg" placeholder="Enter password" required>
+                    </div>
+                    <button type="submit" id="login-btn" class="btn btn-primary btn-lg w-100 mb-3 fw-bold shadow-sm">Login</button>
+                </form>
+                <p class="mt-3 text-muted">Don't have an account? <a href="#" onclick="toggleAuthMode('signup')" class="text-decoration-none fw-bold">Sign Up</a></p>
+            </div>
+
+            <!-- Sign Up Form -->
+            <div id="signup-form-wrapper" class="d-none">
+                <h4 class="mb-4 fw-bold">Create Account</h4>
+                <form id="signup-form" onsubmit="handleSignup(event)">
+                    <div class="mb-3 text-start">
+                        <label class="form-label fw-semibold">Username</label>
+                        <input type="text" id="signup-username" class="form-control form-control-lg" placeholder="Enter new username" required>
+                    </div>
+                    <div class="mb-3 text-start">
+                        <label class="form-label fw-semibold">Password</label>
+                        <input type="password" id="signup-password" class="form-control form-control-lg" placeholder="Enter new password" required>
+                    </div>
+                    <div class="mb-4 text-start">
+                        <label class="form-label fw-semibold">Role</label>
+                        <select id="signup-role" class="form-select form-select-lg">
+                            <option value="worker">Worker</option>
+                        </select>
+                    </div>
+                    <button type="submit" id="signup-btn" class="btn btn-success btn-lg w-100 mb-3 fw-bold shadow-sm">Sign Up</button>
+                </form>
+                <p class="mt-3 text-muted">Already have an account? <a href="#" onclick="toggleAuthMode('login')" class="text-decoration-none fw-bold">Back to Login</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Print Container -->
+    <div id="print-receipt-container"></div>
+
+    <!-- Sidebar Navigation -->
+    <div class="navigation">
+        <div class="border-bottom border-secondary mb-3" style="height: 60px; display: flex; align-items: center; justify-content: center; padding: 0 10px; overflow: hidden;">
+            <img src="https://cdn.jsdelivr.net/gh/loneeddy/imglink@main/KSMm.png" alt="KSM Mobile" style="max-height: 45px; max-width: 100%; object-fit: contain; transition: all 0.3s ease;">
+        </div>
+        <ul>
+            <li class="nav-item hovered" data-tab="dashboard">
+                <ion-icon name="home-outline"></ion-icon><span class="title">Dashboard</span>
+            </li>
+            <li class="nav-item" data-tab="pos">
+                <ion-icon name="calculator-outline"></ion-icon><span class="title">POS</span>
+            </li>
+            <li class="nav-item" data-tab="products">
+                <ion-icon name="cube-outline"></ion-icon><span class="title">Products</span>
+            </li>
+            <li class="nav-item" data-tab="purchases">
+                <ion-icon name="arrow-down-circle-outline"></ion-icon><span class="title">Stock Mgmt</span>
+            </li>
+            <li class="nav-item" data-tab="sales">
+                <ion-icon name="receipt-outline"></ion-icon><span class="title">Sales History</span>
+            </li>
+            <li class="nav-item" data-tab="payments">
+                <ion-icon name="cash-outline"></ion-icon><span class="title">Payments</span>
+            </li>
+            <li class="nav-item" data-tab="reports">
+                <ion-icon name="bar-chart-outline"></ion-icon><span class="title">Reports</span>
+            </li>
+            <li class="nav-item" data-tab="notes">
+                <ion-icon name="document-text-outline"></ion-icon><span class="title">Notes</span>
+            </li>
+            <li class="nav-item admin-only" data-tab="logins">
+                <ion-icon name="list-outline"></ion-icon><span class="title">Login Logs</span>
+            </li>
+        </ul>
+    </div>
+    <!-- Main Content -->
+    <div class="main">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="toggle"><ion-icon name="menu-outline"></ion-icon></div>
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center" onclick="toggleTheme()" title="Toggle Dark Mode" style="width: 32px; height: 32px;">
+                    <ion-icon name="moon-outline" id="theme-icon"></ion-icon>
+                </button>
+                <div id="sync-status" class="small text-muted d-none d-md-block">
+                    <span class="dot success"></span><span id="sync-status-text">Standby</span>
+                </div>
+                <div class="fw-bold text-primary" id="clock">--:--:--</div>
+                <button class="btn btn-sm btn-outline-primary" onclick="syncData()" title="Sync Data">
+                    <ion-icon name="sync-outline"></ion-icon>
+                </button>
+                <button class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center" onclick="logout()" title="Logout" style="width: 32px; height: 32px;">
+                    <ion-icon name="log-out-outline"></ion-icon>
+                </button>
+            </div>
+        </div>
+        <!-- VIEWS -->
+        <!-- 1. Dashboard View -->
+        <div id="dashboard-view" class="view active">
+            <h2 class="mb-4">Dashboard</h2>
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="card bg-primary text-white p-3 h-100">
+                        <h5>Today's Sales</h5>
+                        <h3 id="today-sales">0</h3>
+                    </div>
+                </div>
+                <!-- Profit is Admin Only -->
+                <div class="col-6 col-md-3 admin-only">
+                    <div class="card bg-success text-white p-3 h-100">
+                        <h5>Today's Profit</h5>
+                        <h3 id="today-profit">0</h3>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card bg-info text-white p-3 h-100">
+                        <h5>Items Sold</h5>
+                        <h3 id="items-sold">0</h3>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card bg-danger text-white p-3 h-100">
+                        <h5>Low Stock</h5>
+                        <h3 id="low-stock">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-4">
+                <div class="col-md-7">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-white fw-bold">Recent Items Sold</div>
+                        <div class="card-body p-0">
+                            <table class="table table-hover mb-0">
+                                <thead><tr><th>Image</th><th>Item</th><th>Price</th><th>Status</th></tr></thead>
+                                <tbody id="recent-sales-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-white fw-bold text-danger d-flex justify-content-between align-items-center" 
+                             data-bs-toggle="collapse" data-bs-target="#lowStockCollapse" style="cursor: pointer;" title="Click to minimize/expand"
+                             onclick="const icon = document.getElementById('lowStockIcon'); icon.name = icon.name === 'chevron-up-outline' ? 'chevron-down-outline' : 'chevron-up-outline';">
+                            <span>Low Stock Items</span>
+                            <ion-icon id="lowStockIcon" name="chevron-up-outline"></ion-icon>
+                        </div>
+                        <div class="collapse show" id="lowStockCollapse">
+                            <div class="card-body p-0">
+                                <table class="table table-hover mb-0">
+                                    <thead><tr><th>Image</th><th>Item</th><th>Stock</th></tr></thead>
+                                    <tbody id="low-stock-items-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 2. POS View -->
+        <div id="pos-view" class="view">
+            <div class="row g-3 h-100">
+                <div class="col-lg-8 d-flex flex-column">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-7">
+                            <div class="input-group">
+                                <span class="input-group-text"><ion-icon name="search-outline"></ion-icon></span>
+                                <input type="text" id="product-search" class="form-control" placeholder="Search product or scan..." onkeyup="filterPosProducts()">
+                                <button class="btn btn-outline-secondary" onclick="showBarcodeScanner('pos')"><ion-icon name="barcode-outline"></ion-icon></button>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="input-group">
+                                <span class="input-group-text"><ion-icon name="funnel-outline"></ion-icon></span>
+                                <select id="pos-category-select" class="form-select fw-bold text-primary" onchange="filterPosProducts()">
+                                    <!-- Populated dynamically -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Scrollable Product Grid Area -->
+                    <div class="flex-grow-1">
+                        <div id="pos-product-scroll-area" class="h-100 overflow-auto bg-white p-3 rounded shadow-sm" onscroll="togglePosScrollTop()">
+                            <div id="product-grid" class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+                                <!-- Products populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 d-flex flex-column">
+                    <div class="card shadow-sm h-100 d-flex flex-column">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="m-0 fw-bold">Current Order</h5>
+                            <span id="invoice-number" class="badge bg-secondary"></span>
+                        </div>
+                        <div class="card-body flex-grow-1 overflow-auto p-2" id="cart-items">
+                            <!-- Cart items populated here -->
+                        </div>
+                        <div class="card-footer bg-white">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Subtotal:</span>
+                                <strong><span id="subtotal">0</span></strong>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">%</span>
+                                        <input type="number" id="discount" class="form-control" placeholder="Disc %" onkeyup="updateCartTotals('percent')">
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" id="discount-amount" class="form-control" placeholder="Disc Amt" onkeyup="updateCartTotals('amount')">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between mb-3 border-top pt-2">
+                                <h5>Total:</h5>
+                                <h5 class="text-primary fw-bold"><span id="total">0</span></h5>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-danger w-50" onclick="clearCart()">Clear</button>
+                                <button class="btn btn-success w-50 py-2 fw-bold" onclick="showPaymentModal()">Pay Now</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 3. Products View -->
+        <div id="products-view" class="view">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Products</h2>
+                <!-- Add Product Button is Admin Only -->
+                <button class="btn btn-primary admin-only" onclick="showAddProductModal()"><ion-icon name="add-circle-outline"></ion-icon> Add Product</button>
+            </div>
+            <div class="card shadow-sm">
+                <div class="card-header bg-white p-3">
+                    <div class="input-group w-50">
+                        <span class="input-group-text"><ion-icon name="search-outline"></ion-icon></span>
+                        <input type="text" id="products-search-input" class="form-control" placeholder="Search products..." onkeyup="filterProductsTable()">
+                        <button class="btn btn-outline-secondary" onclick="showBarcodeScanner('products')"><ion-icon name="barcode-outline"></ion-icon></button>
+                    </div>
+                </div>
+                <div class="card-body p-0 scrollable-table-container">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <!-- Actions Column is Admin Only -->
+                            <tr><th>Image</th><th>ID</th><th>Name</th><th>Category</th><th class="admin-only">Buy</th><th>Sell</th><th>Stock</th><th>Barcode</th><th class="admin-only">Actions</th></tr>
+                        </thead>
+                        <tbody id="products-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- 4. Purchases / Stock Management View -->
+        <div id="purchases-view" class="view">
+            <h2 class="mb-4">Stock Management</h2>
+            <div class="row g-4">
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="m-0 text-success fw-bold">Stock IN (Purchases)</h5>
+                            <button class="btn btn-success btn-sm" onclick="showAddPurchaseModal()"><ion-icon name="add-outline"></ion-icon> Add Purchase</button>
+                        </div>
+                        <div class="card-body p-0 table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light"><tr><th>Date</th><th>Item</th><th class="admin-only">Buy Price</th><th>Qty</th><th class="admin-only">Total</th><th>Remarks</th></tr></thead>
+                                <tbody id="purchase-history-table"></tbody>
+                            </table>
+                        </div>
+                        <div class="card-footer bg-white text-center">
+                            <ul class="pagination pagination-sm justify-content-center m-0" id="purchase-pagination"></ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="m-0 text-danger fw-bold">Stock OUT (Lost/Damaged)</h5>
+                            <button class="btn btn-danger btn-sm" onclick="showLostStockModal()"><ion-icon name="remove-circle-outline"></ion-icon> Record Stock Loss</button>
+                        </div>
+                        <div class="card-body p-0 table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light"><tr><th>Date</th><th>Item</th><th>Qty</th><th>Reason</th></tr></thead>
+                                <tbody id="lost-stock-table"></tbody>
+                            </table>
+                        </div>
+                        <div class="card-footer bg-white text-center">
+                            <ul class="pagination pagination-sm justify-content-center m-0" id="lost-stock-pagination"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 5. Sales History View -->
+        <div id="sales-view" class="view">
+            <h2 class="mb-4">Itemized Sales History</h2>
+            <div class="card shadow-sm">
+                <div class="card-header bg-white d-flex gap-2 p-3">
+                    <input type="date" id="sales-date-filter" class="form-control w-auto" onchange="filterSales()">
+                    <button class="btn btn-outline-secondary" onclick="document.getElementById('sales-date-filter').value=''; filterSales()">Clear Filter</button>
+                </div>
+                <div class="card-body p-0 scrollable-table-container">
+                    <table class="table table-hover mb-0">
+                        <!-- Profit Column is Admin Only -->
+                        <thead class="table-light"><tr><th>Img</th><th>Status</th><th>Date</th><th>Item</th><th>Price</th><th>Qty</th><th>Subtotal</th><th>Invoice</th><th class="admin-only">Profit</th></tr></thead>
+                        <tbody id="sales-table"></tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white">
+                    <ul class="pagination pagination-sm justify-content-center m-0" id="sales-pagination"></ul>
+                </div>
+            </div>
+        </div>
+        <!-- 6. Payments View -->
+        <div id="payments-view" class="view">
+            <h2 class="mb-4">Payments History</h2>
+            <div class="card shadow-sm">
+                <div class="card-header bg-white d-flex gap-2 p-3">
+                    <input type="date" id="payments-date-filter" class="form-control w-auto" onchange="filterPayments()">
+                    <button class="btn btn-outline-secondary" onclick="document.getElementById('payments-date-filter').value=''; filterPayments()">Clear</button>
+                </div>
+                <div class="card-body p-0 scrollable-table-container">
+                    <table class="table table-hover mb-0">
+                        <!-- Profit Column is Admin Only -->
+                        <thead class="table-light"><tr><th>Date</th><th>Invoice</th><th>Paid</th><th>Total</th><th class="admin-only">Buy Cost</th><th>Change</th><th class="admin-only">Profit</th><th>Status</th></tr></thead>
+                        <tbody id="payments-table"></tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white">
+                    <ul class="pagination pagination-sm justify-content-center m-0" id="payments-pagination"></ul>
+                </div>
+            </div>
+        </div>
+        <!-- 7. Reports View -->
+        <div id="reports-view" class="view">
+            <h2 class="mb-4">Reports</h2>
+            <div class="card shadow-sm mb-4">
+                <div class="card-body d-flex gap-3 align-items-center">
+                    <select id="report-type" class="form-select w-auto" onchange="generateReport()">
+                        <option value="daily">Daily</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="generateReport()">Generate</button>
+                    <button class="btn btn-success" onclick="exportReport()">Export CSV</button>
+                </div>
+            </div>
+            <div class="card shadow-sm">
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-striped mb-0" id="report-table-export">
+                        <thead class="table-dark" id="report-table-head"></thead>
+                        <tbody id="report-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- 8. Notes View -->
+        <div id="notes-view" class="view">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Notes</h2>
+                <button class="btn btn-primary" onclick="showAddNoteModal()"><ion-icon name="add-circle-outline"></ion-icon> Add Note</button>
+            </div>
+            <div class="row row-cols-1 row-cols-md-3 row-cols-lg-4 g-4" id="notes-container">
+                <!-- Notes injected here -->
+            </div>
+        </div>
+        <!-- 9. Logins View (Admin Only) -->
+        <div id="logins-view" class="view">
+            <h2 class="mb-4">Login Activity Logs</h2>
+            <div class="card shadow-sm">
+                <div class="card-body p-0 scrollable-table-container">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr><th>Timestamp</th><th>Username</th><th>Role</th></tr>
+                        </thead>
+                        <tbody id="logins-table"></tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white">
+                    <ul class="pagination pagination-sm justify-content-center m-0" id="logins-pagination"></ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scroll to Top Button (Fixed to viewport) -->
+        <button id="posScrollTopBtn" class="btn btn-primary rounded-circle shadow align-items-center justify-content-center d-none" 
+                onclick="scrollToTopPos()" 
+                style="position: fixed; bottom: 30px; right: 30px; z-index: 1050; width: 55px; height: 55px; padding: 0; opacity: 0.9;">
+            <ion-icon name="arrow-up-outline" style="font-size: 1.8rem; margin: 0;"></ion-icon>
+        </button>
+
+    </div> <!-- End Main -->
+    <!-- ================= MODALS ================= -->
+    
+    <!-- Confirm Modal -->
+    <div class="modal fade" id="confirm-modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center p-4">
+                    <ion-icon name="warning-outline" class="text-warning mb-3" style="font-size: 3rem;"></ion-icon>
+                    <h5 id="confirm-modal-text">Are you sure?</h5>
+                </div>
+                <div class="modal-footer justify-content-center border-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirm-modal-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Add/Edit Product Modal -->
+    <div class="modal fade" id="add-product-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="product-modal-title">Add Product</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="product-form">
+                        <input type="hidden" id="product-id">
+                        <div class="row">
+                            <div class="col-md-4 text-center mb-3">
+                                <img id="product-image-preview" src="https://placehold.co/600x400/EEE/333?text=No+Image" class="img-fluid rounded mb-2 border" style="max-height: 200px; object-fit: cover;">
+                                <div class="d-flex gap-2 justify-content-center mt-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm flex-grow-1" onclick="document.getElementById('product-image-upload').click()">Upload File</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm flex-grow-1" onclick="openCamera('product')">Camera</button>
+                                </div>
+                                <input type="file" id="product-image-upload" class="d-none" accept="image/*">
+                            </div>
+                            <div class="col-md-8">
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Name *</label>
+                                        <input type="text" id="product-name" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Category *</label>
+                                        <input type="text" id="product-category" class="form-control" list="category-datalist" required>
+                                        <datalist id="category-datalist"></datalist>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Barcode</label>
+                                        <div class="input-group">
+                                            <input type="text" id="product-barcode" class="form-control">
+                                            <button type="button" class="btn btn-outline-secondary" onclick="showBarcodeScanner('productForm')"><ion-icon name="barcode-outline"></ion-icon></button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Buy Price</label>
+                                        <input type="number" step="0.01" id="product-buy-price" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Sell Price</label>
+                                        <input type="number" step="0.01" id="product-sell-price" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Stock</label>
+                                        <input type="number" id="product-stock" class="form-control" required>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Comments</label>
+                                        <textarea id="product-comment" class="form-control" rows="2"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="saveProduct()">Save Product</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Add Purchase Modal -->
+    <div class="modal fade" id="add-purchase-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Stock (Purchase)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="purchase-form">
+                        <div class="mb-3">
+                            <label class="form-label">Search / Scan Barcode</label>
+                            <div class="input-group">
+                                <input type="text" id="purchase-search-input" class="form-control" placeholder="Type to filter or scan..." onkeyup="filterProductDropdown('purchase-search-input', 'purchase-product')">
+                                <button type="button" class="btn btn-outline-secondary" onclick="showBarcodeScanner('purchase')"><ion-icon name="barcode-outline"></ion-icon></button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Select Product *</label>
+                            <select id="purchase-product" class="form-select" required onchange="updatePurchaseModalDetails(this)"></select>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <small class="text-muted d-block">Current Stock: <strong id="purchase-current-stock">N/A</strong></small>
+                            </div>
+                            <div class="col-6 text-end admin-only">
+                                <small class="text-muted d-block">Current Buy Price: <strong id="purchase-current-buy-price">N/A</strong></small>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Date</label>
+                                <input type="date" id="purchase-date" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Qty to Add *</label>
+                                <input type="number" id="purchase-qty" class="form-control" min="1" required>
+                            </div>
+                            <div class="col-12 admin-only">
+                                <label class="form-label">New Buy Price (Per Unit) *</label>
+                                <input type="number" step="0.01" id="purchase-buy-price" class="form-control">
+                            </div>
+                            <div class="col-12 admin-only">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="update-default-buy-price" checked>
+                                    <label class="form-check-label" for="update-default-buy-price">Update default buy price in product catalog</label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Remarks / Supplier</label>
+                                <input type="text" id="purchase-remarks" class="form-control">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" onclick="savePurchase()">Save Purchase</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Add Lost Stock Modal -->
+    <div class="modal fade" id="lost-stock-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Record Stock Loss</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="lost-stock-form">
+                        <div class="mb-3">
+                            <label class="form-label">Search / Scan Barcode</label>
+                            <div class="input-group">
+                                <input type="text" id="lost-stock-search-input" class="form-control" placeholder="Type to filter or scan..." onkeyup="filterProductDropdown('lost-stock-search-input', 'lost-stock-product')">
+                                <button type="button" class="btn btn-outline-secondary" onclick="showBarcodeScanner('lostStock')"><ion-icon name="barcode-outline"></ion-icon></button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Select Product *</label>
+                            <select id="lost-stock-product" class="form-select" required></select>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Date</label>
+                                <input type="date" id="lost-stock-date" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Qty Lost *</label>
+                                <input type="number" id="lost-stock-qty" class="form-control" min="1" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Reason * (Damage, Theft, etc.)</label>
+                                <input type="text" id="lost-stock-remarks" class="form-control" required>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-danger" onclick="saveLostStock()">Record Loss</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Payment Modal -->
+    <div class="modal fade" id="payment-modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Complete Payment</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="d-flex justify-content-between mb-2"><span>Subtotal:</span><strong><span id="modal-subtotal"></span></strong></div>
+                    <div class="d-flex justify-content-between mb-3 border-bottom pb-2"><span>Discount:</span><span class="text-danger" id="modal-discount"></span></div>
+                    <div class="d-flex justify-content-between mb-4">
+                        <h4 class="m-0">Total Due:</h4>
+                        <h4 class="m-0 text-primary fw-bold"><span id="modal-total"></span></h4>
+                    </div>
+                    
+                    <label class="form-label fw-bold">Amount Received (Cash)</label>
+                    <div class="input-group input-group-lg mb-3">
+                        <span class="input-group-text">$</span>
+                        <input type="number" id="amount-received" class="form-control fw-bold fs-4 text-end" onkeyup="calculateChange()" placeholder="0">
+                    </div>
+                    
+                    <div class="row g-2 mb-4">
+                        <div class="col-3"><button class="btn btn-outline-secondary w-100 fw-bold px-1" onclick="addAmount(1000)">+1000</button></div>
+                        <div class="col-3"><button class="btn btn-outline-secondary w-100 fw-bold px-1" onclick="addAmount(5000)">+5000</button></div>
+                        <div class="col-3"><button class="btn btn-outline-secondary w-100 fw-bold px-1" onclick="addAmount(10000)">+10K</button></div>
+                        <div class="col-3"><button class="btn btn-primary w-100 fw-bold px-1" onclick="setAmountToTotal()">EXACT</button></div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded border">
+                        <h5 class="m-0 text-muted">Change:</h5>
+                        <h3 class="m-0 text-success fw-bold"><span id="change-amount">0</span></h3>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pb-4 px-4">
+                    <div class="d-flex w-100 gap-2 mb-2">
+                        <button type="button" class="btn btn-secondary flex-grow-1 py-2" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                    <div class="d-flex w-100 gap-2">
+                        <button type="button" class="btn btn-primary flex-grow-1 py-3 fw-bold fs-6" onclick="processPayment(false)">Pay Only</button>
+                        <button type="button" class="btn btn-success flex-grow-1 py-3 fw-bold fs-6" onclick="processPayment(true)">
+                            <ion-icon name="print-outline" class="align-middle me-1"></ion-icon>Pay & Print
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Add Note Modal -->
+    <div class="modal fade" id="add-note-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Note</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="note-form">
+                        <div class="text-center mb-3">
+                            <img id="note-image-preview" src="https://placehold.co/600x400/EEE/333?text=No+Image" class="img-fluid rounded mb-2 border" style="max-height: 200px; object-fit: cover;">
+                            <div class="d-flex gap-2 justify-content-center mt-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm flex-grow-1" onclick="document.getElementById('note-image-upload').click()">Upload File</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm flex-grow-1" onclick="openCamera('note')">Camera</button>
+                            </div>
+                            <input type="file" id="note-image-upload" class="d-none" accept="image/*">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input type="text" id="note-title" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Content</label>
+                            <textarea id="note-content" class="form-control" rows="4"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNote()">Save Note</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Scanner Modal -->
+    <div class="modal fade" id="scanner-modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Scan Barcode</h5>
+                    <button type="button" class="btn-close" onclick="stopScanner()"></button>
+                </div>
+                <div class="modal-body p-0 text-center bg-dark">
+                    <div id="reader" style="width: 100%; min-height: 300px;"></div>
+                    <div id="scanner-result" class="p-3 bg-white"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary w-100" onclick="stopScanner()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Camera Modal -->
+    <div class="modal fade" id="camera-modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Take Photo</h5>
+                    <button type="button" class="btn-close btn-close-white" onclick="closeCamera()"></button>
+                </div>
+                <div class="modal-body p-0 position-relative text-center">
+                    <video id="camera-video" style="width:100%; max-height: 70vh; background: #000;" autoplay playsinline></video>
+                    <canvas id="camera-canvas" class="d-none"></canvas>
+                    <div id="camera-notice" class="p-4" style="display:none;"></div>
+                </div>
+                <div class="modal-footer border-secondary justify-content-center">
+                    <button type="button" class="btn btn-secondary" onclick="closeCamera()">Cancel</button>
+                    <button type="button" class="btn btn-primary rounded-circle" style="width: 60px; height: 60px;" onclick="captureImage()"><ion-icon name="camera" style="font-size: 24px;"></ion-icon></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- HTML5 QRCode Scanner -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- Ionicons -->
+    <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <!-- App Logic -->
+    <script>
+    // =========================================================
+    // CRITICAL API SETUP FOR GITHUB DEPLOYMENT
+    // =========================================================
+    // Replace this string with your published Web App URL from Google Apps Script!
+    const API_URL = "https://script.google.com/macros/s/AKfycbyhO8w5pe_l2e3XOt7MEfNfs1CKpGGjMWE_g3cE_YLzhW52wQ9rgXryR7J-Uk_-U4QB/exec"; 
+
+    /**
+     * Replaces google.script.run by sending a fetch POST request to Google Apps Script
+     */
+    async function apiCall(actionName, payloadData = {}) {
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                // Using text/plain prevents CORS preflight OPTIONS errors in Apps Script
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action: actionName, payload: payloadData })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            return result.data;
+        } catch (error) {
+            console.error("API Error:", error);
+            throw error;
+        }
+    }
+    // =========================================================
+
+    // Global state variables
+    let allProducts = [], allCategories = [], allNotes = [], allSalesHistory = [], allPaymentsHistory = [], allPurchaseHistory = [], allLostStockHistory = [];
+    let allLogins = []; 
+    let cart = [];
+    let currentInvoiceNumber = '';
+    let confirmCallback = null;
+    let html5QrcodeScanner;
+    let currentScannerContext = ''; 
+    const ITEMS_PER_PAGE = 10;
+    let newProductImageData = null; 
+    let newNoteImageData = null; 
+    let cameraContext = ''; 
+    let syncInterval;
+    let isSyncing = false;
+    let currentUserRole = null; 
+
+    // Bootstrap Modal instances
+    let confirmModal, addProductModal, addPurchaseModal, paymentModal, addNoteModal, scannerModal, cameraModal, lostStockModal;
+    
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', () => {
+        confirmModal = new bootstrap.Modal(document.getElementById('confirm-modal'));
+        addProductModal = new bootstrap.Modal(document.getElementById('add-product-modal'));
+        addPurchaseModal = new bootstrap.Modal(document.getElementById('add-purchase-modal'));
+        paymentModal = new bootstrap.Modal(document.getElementById('payment-modal'));
+        addNoteModal = new bootstrap.Modal(document.getElementById('add-note-modal'));
+        scannerModal = new bootstrap.Modal(document.getElementById('scanner-modal'));
+        cameraModal = new bootstrap.Modal(document.getElementById('camera-modal'));
+        lostStockModal = new bootstrap.Modal(document.getElementById('lost-stock-modal'));
+        
+        loadSavedTheme(); 
+        
+        initializeApp();
+        setupEventListeners();
+        updateClock();
+        setInterval(updateClock, 1000);
+    });
+
+    // --- LOGIN & SIGNUP SYSTEM ---
+    function toggleAuthMode(mode) {
+        if (mode === 'signup') {
+            document.getElementById('login-form-wrapper').classList.add('d-none');
+            document.getElementById('signup-form-wrapper').classList.remove('d-none');
+        } else {
+            document.getElementById('signup-form-wrapper').classList.add('d-none');
+            document.getElementById('login-form-wrapper').classList.remove('d-none');
+        }
+    }
+
+    function handleSignup(event) {
+        event.preventDefault();
+        const user = document.getElementById('signup-username').value.trim();
+        const pass = document.getElementById('signup-password').value;
+        const role = document.getElementById('signup-role').value;
+        const btn = document.getElementById('signup-btn');
+
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
+        btn.disabled = true;
+
+        apiCall('registerUser', { username: user, password: pass, role: role })
+            .then(res => {
+                btn.innerHTML = 'Sign Up';
+                btn.disabled = false;
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    toggleAuthMode('login');
+                    document.getElementById('login-username').value = user;
+                    document.getElementById('signup-form').reset();
+                } else {
+                    showToast(res.message, 'error');
+                }
+            })
+            .catch(err => {
+                btn.innerHTML = 'Sign Up';
+                btn.disabled = false;
+                showToast('Failed to connect: ' + err.message, 'error');
+            });
+    }
+
+    function handleLogin(event) {
+        event.preventDefault();
+        const user = document.getElementById('login-username').value.trim();
+        const pass = document.getElementById('login-password').value;
+        const loginBtn = document.getElementById('login-btn');
+
+        loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Checking...';
+        loginBtn.disabled = true;
+
+        apiCall('authenticateUser', { username: user, password: pass })
+            .then(role => {
+                loginBtn.innerHTML = 'Login';
+                loginBtn.disabled = false;
+
+                if (role === 'admin') {
+                    currentUserRole = 'admin';
+                    document.body.classList.remove('role-worker');
+                    completeLogin(user);
+                } else if (role === 'worker') {
+                    currentUserRole = 'worker';
+                    document.body.classList.add('role-worker');
+                    completeLogin(user);
+                } else {
+                    showToast('Invalid Username or Password!', 'error');
+                }
+            })
+            .catch(err => {
+                loginBtn.innerHTML = 'Login';
+                loginBtn.disabled = false;
+                showToast('Failed to connect to server: ' + err.message, 'error');
+            });
+    }
+
+    function completeLogin(username) {
+        document.body.classList.remove('logged-out');
+        document.getElementById('login-form').reset();
+        
+        apiCall('recordLogin', { username: username, role: currentUserRole });
+        
+        loadView('dashboard');
+        loadProductsTable();
+        loadSalesTable(1);
+        loadPaymentsTable(1);
+    }
+
+    function logout() {
+        currentUserRole = null;
+        document.body.classList.add('logged-out'); 
+        document.body.classList.remove('role-worker');
+        document.getElementById('login-username').value = '';
+        document.getElementById('login-password').value = '';
+        showToast('Logged out successfully');
+    }
+
+    function initializeApp() {
+        if (currentUserRole !== null) showLoading(); 
+        apiCall('getInitialData')
+            .then(data => {
+                initializeUI(data);
+                if (currentUserRole !== null) hideLoading();
+                updateSyncStatus('success', new Date().toLocaleTimeString());
+            })
+            .catch(err => {   
+                showToast('Error loading initial data: ' + err.message, 'error');   
+                if (currentUserRole !== null) hideLoading();   
+                updateSyncStatus('error');
+            });
+    }
+
+    function initializeUI(data) {
+        allProducts = data.products || [];
+        allCategories = data.categories || [];
+        allNotes = data.notes || [];
+        allSalesHistory = data.salesHistory || [];
+        allPaymentsHistory = data.paymentsHistory || [];
+        allPurchaseHistory = data.purchaseHistory || [];
+        allLostStockHistory = data.lostStockHistory || [];
+        currentInvoiceNumber = data.invoiceNumber || 'INV-1001';
+        
+        if (currentUserRole) {
+            const activeViewElement = document.querySelector('.view.active');
+            if (!activeViewElement || activeViewElement.id === 'dashboard-view') {
+                loadView('dashboard', data.dashboardData);
+            }
+        }
+        
+        updateProductDropdowns();
+        updateCategoryDatalist();
+    }
+
+    // --- UI AND NAVIGATION ---
+    function setupEventListeners() {
+        const toggle = document.querySelector(".toggle");
+        const navigation = document.querySelector(".navigation");
+        const main = document.querySelector(".main");
+        toggle.onclick = () => {
+            navigation.classList.toggle("active");
+            main.classList.toggle("active");
+        };
+        const list = document.querySelectorAll(".navigation li.nav-item");
+        list.forEach(item => {
+            item.addEventListener("click", function() {
+                list.forEach(li => li.classList.remove("hovered"));
+                this.classList.add("hovered");
+                loadView(this.dataset.tab);
+                if (window.innerWidth <= 768) {
+                    navigation.classList.remove("active");
+                    main.classList.remove("active");
+                }
+            });
+        });
+        
+        document.getElementById('product-image-upload').addEventListener('change', (event) => handleImageUpload(event, 'product'));
+        document.getElementById('note-image-upload').addEventListener('change', (event) => handleImageUpload(event, 'note'));
+        
+        document.addEventListener('keydown', (event) => {
+            if (document.querySelector('.modal.show') || 
+                ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+                return;
+            }
+            const posView = document.getElementById('pos-view');
+            const productsView = document.getElementById('products-view');
+            let scrollableElement = null;
+            if (posView.classList.contains('active')) {
+                scrollableElement = document.getElementById('product-grid').parentElement;
+            } else if (productsView.classList.contains('active')) {
+                scrollableElement = productsView.querySelector('.scrollable-table-container');
+            }
+            if (scrollableElement) {
+                const scrollAmount = 150;
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    scrollableElement.scrollTop += scrollAmount;
+                } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    scrollableElement.scrollTop -= scrollAmount;
+                }
+            }
+        });
+
+        const productsTable = document.getElementById('products-table');
+        let lastTap = 0;
+        productsTable.addEventListener('click', function(event) {
+            if (currentUserRole !== 'admin') return; 
+            const row = event.target.closest('tr');
+            if (!row) return;
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            if (tapLength < 300 && tapLength > 0) {
+                const productId = row.dataset.id;
+                if (productId) {
+                    handleEditClick(productId);
+                }
+                event.preventDefault();
+            }
+            lastTap = currentTime;
+        });
+        productsTable.addEventListener('dblclick', function(event) {
+            if (currentUserRole !== 'admin') return; 
+            const row = event.target.closest('tr');
+            if (row) {
+                const productId = row.dataset.id;
+                if (productId) {
+                    handleEditClick(productId);
+                }
+            }
+        });
+
+        syncInterval = setInterval(syncData, 15 * 60 * 1000); 
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('scroll', togglePosScrollTop);
+
+        document.getElementById('scanner-modal').addEventListener('hidden.bs.modal', function () {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear().catch(e => console.error(e));
+                html5QrcodeScanner = null;
+                document.getElementById('reader').innerHTML = '';
+            }
+        });
+        
+        document.getElementById('scanner-modal').addEventListener('shown.bs.modal', function () {
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5QrcodeScanner(
+                    "reader",
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 150 },
+                        rememberLastUsedCamera: true,
+                        showTorchButtonIfSupported: true,
+                        useBarCodeDetectorIfSupported: true 
+                    },
+                    false 
+                );
+                html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            }
+        });
+    }
+
+    function updateClock() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+        document.getElementById('clock').textContent = timeString;
+    }
+
+    function loadView(viewName, data = null) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        const activeView = document.getElementById(`${viewName}-view`);
+        if (activeView) {
+            activeView.classList.add('active');
+        }
+        switch(viewName) {
+            case 'dashboard': if(data) loadDashboardData(data); else apiCall('getDashboardData').then(loadDashboardData); break;
+            case 'pos': loadPosView(); break;
+            case 'products': loadProductsTable(); break;
+            case 'purchases': 
+                loadPurchaseHistoryTable(1); 
+                loadLostStockTable(1);
+                break;
+            case 'sales': loadSalesTable(1); break;
+            case 'payments': loadPaymentsTable(1); break;
+            case 'reports': generateReport(); break;
+            case 'notes': loadNotes(); break;
+            case 'logins': loadLoginsView(); break;
+        }
+        
+        togglePosScrollTop();
+    }
+
+    // --- VIEW-SPECIFIC LOADERS ---
+    function loadLoginsView() {
+        if (currentUserRole !== 'admin') return;
+        showLoading();
+        apiCall('getLogins')
+            .then(data => {
+                allLogins = data;
+                renderLoginsTable(1);
+                hideLoading();
+            })
+            .catch(err => {
+                showToast("Error loading logins: " + err.message, "error");
+                hideLoading();
+            });
+    }
+
+    function renderLoginsTable(page = 1) {
+        const totalPages = Math.ceil(allLogins.length / ITEMS_PER_PAGE);
+        const startIndex = (page - 1) * ITEMS_PER_PAGE;
+        const pageData = allLogins.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        const tableBody = document.getElementById('logins-table');
+
+        tableBody.innerHTML = pageData.length === 0 ? '<tr><td colspan="3" class="text-center py-4">No login activity found.</td></tr>' : pageData.map(log => `<tr>
+            <td class="align-middle">${log.timestamp}</td>
+            <td class="align-middle fw-bold text-primary">${log.username}</td>
+            <td class="align-middle"><span class="badge bg-${log.role === 'admin' ? 'danger' : 'secondary'}">${log.role}</span></td>
+        </tr>`).join('');
+
+        renderPagination('logins-pagination', page, totalPages, 'renderLoginsTable');
+    }
+
+    function loadDashboardData(data) {
+        if (!data) return;
+        document.getElementById('today-sales').textContent = formatNumber(data.todaySales);
+        document.getElementById('today-profit').textContent = formatNumber(data.todayProfit);
+        document.getElementById('items-sold').textContent = data.itemsSold;
+        document.getElementById('low-stock').textContent = data.lowStockCount;
+        const recentSalesBody = document.getElementById('recent-sales-table-body');
+        recentSalesBody.innerHTML = data.recentSales.length === 0 
+            ? '<tr><td colspan="4" class="text-center py-3">No recent sales</td></tr>' 
+            : data.recentSales.map(s => `<tr>
+                <td class="align-middle"><img src="${s.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';"></td>
+                <td class="align-middle">${s.item}</td>
+                <td class="align-middle text-primary fw-bold">${formatNumber(s.price)}</td>
+                <td class="align-middle"><span class="badge bg-success">${s.status}</span></td>
+              </tr>`).join('');
+        const lowStockBody = document.getElementById('low-stock-items-body');
+        lowStockBody.innerHTML = data.lowStockItems.length === 0 
+            ? '<tr><td colspan="3" class="text-center py-3">No low stock items</td></tr>'
+            : data.lowStockItems.map(item => `<tr>
+                <td class="align-middle"><img src="${item.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';"></td>
+                <td class="align-middle"><h6 class="m-0">${item.name}</h6></td>
+                <td class="align-middle text-danger fw-bold">${item.stock}</td>
+               </tr>`).join('');
+    }
+
+    function loadPosView() {
+        document.getElementById('invoice-number').textContent = currentInvoiceNumber;
+        updatePosCategories();
+        filterPosProducts();
+    }
+    
+    function updatePosCategories() {
+        const categorySelect = document.getElementById('pos-category-select');
+        if (!categorySelect) return;
+        
+        const currentSelection = categorySelect.value;
+        const cats = new Set(allCategories);
+        cats.add("ငွေဖြည့်ကဒ်");
+
+        let optionsHtml = '<option value="all">All Categories</option>';
+        cats.forEach(cat => {
+            optionsHtml += `<option value="${cat}">${cat}</option>`;
+        });
+        categorySelect.innerHTML = optionsHtml;
+
+        if (currentSelection) {
+            categorySelect.value = currentSelection; 
+        } else {
+            categorySelect.value = "ငွေဖြည့်ကဒ်"; 
+        }
+    }
+
+    function updateProductGrid(products) {
+        const grid = document.getElementById('product-grid');
+        grid.innerHTML = products.length === 0 ? '<p class="col-12 text-center py-4">No products found</p>' : products.map(p => {
+            let stockBadge = '';
+            let cardClass = 'card pos-product-card h-100';
+            
+            if (p.stock <= 0) {
+                cardClass += ' out-of-stock';
+                stockBadge = '<span class="badge bg-danger stock-badge">Out of Stock</span>';
+            } else if (p.stock === 1) {
+                stockBadge = '<span class="badge bg-warning text-dark stock-badge">1 Left</span>';
+            }
+
+            return `
+            <div class="col">
+                <div class="${cardClass}" onclick="handleAddToCartClick('${p.id}')">
+                    ${stockBadge}
+                    <img src="${p.imageUrl || 'https://placehold.co/400x300/EEE/333?text=N/A'}" class="pos-product-img" alt="${p.name}" onerror="this.onerror=null;this.src='https://placehold.co/400x300/EEE/333?text=N/A';">
+                    <div class="pos-product-details d-flex flex-column h-100">
+                        <div class="pos-product-name mb-auto" title="${p.name}">${p.name}</div>
+                        <div class="d-flex justify-content-between align-items-end mt-2">
+                            <div class="pos-product-price">${formatNumber(p.sellPrice)}</div>
+                            <div class="pos-product-stock ${p.stock <= 1 ? 'text-danger fw-bold' : ''}">Stock: ${p.stock}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `}).join('');
+    }
+
+    // --- PRODUCTS MANAGEMENT VIEW ---
+    function renderProductsTable(productsToRender) {
+        const tableBody = document.getElementById('products-table');
+        if (!productsToRender || productsToRender.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="9" class="text-center py-4">No products found.</td></tr>';
+            return;
+        }
+        
+        tableBody.innerHTML = productsToRender.map(p => `<tr data-id="${p.id}" style="cursor:pointer;">
+            <td><img src="${p.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';"></td>
+            <td class="align-middle">${p.id || ''}</td>
+            <td class="align-middle fw-bold">${p.name || ''}</td>
+            <td class="align-middle"><span class="badge bg-secondary">${p.category || ''}</span></td>
+            <td class="align-middle admin-only">${formatNumber(p.buyPrice)}</td>
+            <td class="align-middle text-primary fw-bold">${formatNumber(p.sellPrice)}</td>
+            <td class="align-middle"><span class="${p.stock <= 1 ? 'text-danger fw-bold' : ''}">${p.stock}</span></td>
+            <td class="align-middle">${p.barcode || ''}</td>
+            <td class="align-middle admin-only">
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="handleEditClick('${p.id}')"><ion-icon name="create-outline"></ion-icon></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteProduct('${p.id}')"><ion-icon name="trash-outline"></ion-icon></button>
+            </td>
+        </tr>`).join('');
+    }
+
+    function loadProductsTable() {
+        renderProductsTable(allProducts);
+        const searchInput = document.getElementById('products-search-input');
+        if (searchInput) {
+          searchInput.value = '';
+        }
+    }
+
+    function filterProductsTable() {
+        const searchTerm = document.getElementById('products-search-input').value.toLowerCase();
+        let filtered = allProducts;
+        if (searchTerm) {
+            filtered = allProducts.filter(p =>
+                (p.name && p.name.toLowerCase().includes(searchTerm)) ||
+                (p.id && p.id.toLowerCase().includes(searchTerm)) ||
+                (p.barcode && p.barcode.includes(searchTerm))
+            );
+        }
+        renderProductsTable(filtered);
+    }
+
+    function handleProductTableScan(barcode) {
+        const product = allProducts.find(p => p.barcode === barcode);
+        const searchInput = document.getElementById('products-search-input');
+        searchInput.value = barcode;
+        if (product) {
+            filterProductsTable();
+            showToast(`Found: ${product.name}`);
+        } else {
+            filterProductsTable(); 
+            if (currentUserRole === 'admin') {
+                showConfirmModal(`Product with barcode "${barcode}" not found. Add it now?`, () => {
+                    showAddProductModal();
+                    document.getElementById('product-barcode').value = barcode;
+                });
+            } else {
+                showToast(`Barcode ${barcode} not found.`);
+            }
+        }
+    }
+
+    function loadSalesTable(page = 1) {
+        const dateFilter = document.getElementById('sales-date-filter').value;
+        let filteredData = allSalesHistory;
+        if (dateFilter) {
+            const targetDate = new Date(dateFilter).toISOString().split('T')[0];
+            filteredData = allSalesHistory.filter(sale => new Date(sale.date).toISOString().split('T')[0] === targetDate);
+        }
+        const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+        const startIndex = (page - 1) * ITEMS_PER_PAGE;
+        const pageData = filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        const tableBody = document.getElementById('sales-table');
+        
+        tableBody.innerHTML = pageData.length === 0 ? '<tr><td colspan="9" class="text-center py-4">No sales found.</td></tr>' : pageData.map(sale => `<tr>
+            <td><img src="${sale.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';"></td>
+            <td class="align-middle"><span class="badge bg-success">${sale.status}</span></td>
+            <td class="align-middle">${new Date(sale.date).toLocaleString()}</td>
+            <td class="align-middle">${sale.item}</td>
+            <td class="align-middle">${formatNumber(sale.price)}</td>
+            <td class="align-middle">${sale.qty}</td>
+            <td class="align-middle fw-bold">${formatNumber(sale.subtotal)}</td>
+            <td class="align-middle text-primary">${sale.invoice}</td>
+            <td class="align-middle text-success fw-bold admin-only">${formatNumber(sale.profit)}</td>
+        </tr>`).join('');
+        renderPagination('sales-pagination', page, totalPages, 'loadSalesTable');
+    }
+
+    // --- DATA MANIPULATION & SERVER CALLS ---
+    function saveProduct() {
+        if (currentUserRole !== 'admin') return;
+        const productData = {
+            id: document.getElementById('product-id').value,
+            category: document.getElementById('product-category').value.trim(),
+            name: document.getElementById('product-name').value.trim(),
+            buyPrice: parseFloat(document.getElementById('product-buy-price').value) || 0,
+            sellPrice: parseFloat(document.getElementById('product-sell-price').value) || 0,
+            stock: parseInt(document.getElementById('product-stock').value) || 0,
+            barcode: document.getElementById('product-barcode').value.trim(),
+            comment: document.getElementById('product-comment').value.trim(),
+            imageData: newProductImageData 
+        };
+        if (!productData.name || !productData.category) { return showToast('Name and Category are required.', 'error'); }
+        showLoading();
+
+        apiCall('saveProduct', productData)
+            .then(response => {
+                allProducts = response.products;
+                allCategories = response.categories;
+                if(response.purchaseHistory) allPurchaseHistory = response.purchaseHistory;
+                
+                loadProductsTable();
+                updateProductDropdowns();
+                updateCategoryDatalist();
+                addProductModal.hide();
+                showToast(response.status);
+                hideLoading();
+                newProductImageData = null; 
+            })
+            .catch(err => { showToast('Error: ' + err.message, 'error'); hideLoading(); });
+    }
+
+    function deleteProduct(id) {
+        if (currentUserRole !== 'admin') return;
+        showConfirmModal('Are you sure you want to delete this product and its image?', () => {
+            showLoading();
+            apiCall('deleteProduct', id)
+                .then(response => {
+                    allProducts = response.products;
+                    loadProductsTable();
+                    showToast(response.status);
+                    hideLoading();
+                })
+                .catch(err => { showToast('Error: ' + err.message, 'error'); hideLoading(); });
+        });
+    }
+
+    // --- IMAGE HANDLING (Client-side) ---
+    function handleImageUpload(event, context) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (context === 'product') {
+                    newProductImageData = e.target.result;
+                    document.getElementById('product-image-preview').src = e.target.result;
+                } else if (context === 'note') {
+                    newNoteImageData = e.target.result;
+                    document.getElementById('note-image-preview').src = e.target.result;
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function openCamera(context) {
+        cameraContext = context;
+        const video = document.getElementById('camera-video');
+        const cameraNotice = document.getElementById('camera-notice');
+        cameraModal.show();
+        
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.style.display = 'block';
+                    cameraNotice.style.display = 'none';
+                    video.play();
+                })
+                .catch(err => {
+                    cameraNotice.textContent = 'Could not access camera. Please check permissions.';
+                    cameraNotice.style.display = 'block';
+                    video.style.display = 'none';
+                });
+        } else {
+             cameraNotice.textContent = 'Camera not supported on this browser.';
+             cameraNotice.style.display = 'none';
+        }
+    }
+
+    function captureImage() {
+        const video = document.getElementById('camera-video');
+        const canvas = document.getElementById('camera-canvas');
+        const context = canvas.getContext('2d');
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const imageData = canvas.toDataURL('image/jpeg');
+        if (cameraContext === 'product') {
+            newProductImageData = imageData;
+            document.getElementById('product-image-preview').src = imageData;
+        } else if (cameraContext === 'note') {
+            newNoteImageData = imageData;
+            document.getElementById('note-image-preview').src = imageData;
+        }
+        
+        closeCamera();
+    }
+
+    function closeCamera() {
+        const video = document.getElementById('camera-video');
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+        video.srcObject = null;
+        cameraContext = ''; 
+        cameraModal.hide();
+    }
+
+    // --- MODAL & HELPER FUNCTIONS ---
+    function showAddProductModal() { 
+        if (currentUserRole !== 'admin') return;
+        document.getElementById('product-form').reset(); 
+        document.getElementById('product-id').value = ''; 
+        document.getElementById('product-modal-title').textContent = 'Add Product'; 
+        document.getElementById('product-image-preview').src = 'https://placehold.co/600x400/EEE/333?text=No+Image';
+        newProductImageData = null;
+        addProductModal.show(); 
+    }
+
+    function showAddNoteModal() {
+        document.getElementById('note-form').reset();
+        document.getElementById('note-image-preview').src = 'https://placehold.co/600x400/EEE/333?text=No+Image';
+        newNoteImageData = null;
+        addNoteModal.show();
+    }
+
+    function openEditProductModal(p) {
+        if (currentUserRole !== 'admin') return;
+        document.getElementById('product-form').reset();
+        document.getElementById('product-modal-title').textContent = 'Edit Product';
+        document.getElementById('product-id').value = p.id;
+        document.getElementById('product-category').value = p.category;
+        document.getElementById('product-name').value = p.name;
+        document.getElementById('product-buy-price').value = p.buyPrice;
+        document.getElementById('product-sell-price').value = p.sellPrice;
+        document.getElementById('product-stock').value = p.stock;
+        document.getElementById('product-barcode').value = p.barcode || '';
+        document.getElementById('product-comment').value = p.comment || '';
+        document.getElementById('product-image-preview').src = p.imageUrl || 'https://placehold.co/600x400/EEE/333?text=No+Image';
+        newProductImageData = null; 
+        addProductModal.show();
+    }
+
+    function handleEditClick(productId) {
+        const product = allProducts.find(p => p.id === productId);
+        if (product) {
+            openEditProductModal(product);
+        } else {
+            showToast('Could not find product to edit.', 'error');
+        }
+    }
+
+    function handleAddToCartClick(productId) {
+        const product = allProducts.find(p => p.id === productId);
+        if (product) {
+            addToCart(product);
+        } else {
+            showToast('Could not find product to add to cart.', 'error');
+        }
+    }
+
+    // --- PAYMENT MODAL FUNCTIONS ---
+    function showPaymentModal() {
+        if (cart.length === 0) { return showToast('Cart is empty', 'error'); }
+        const subtotal = cart.reduce((sum, item) => sum + (item.sellPrice * item.qty), 0);
+        const discountPercent = parseFloat(document.getElementById('discount').value) || 0;
+        const discountAmount = parseFloat(document.getElementById('discount-amount').value) || 0;
+        let total = subtotal;
+        let discountText = '0';
+        if (discountPercent > 0) {
+            total = subtotal * (1 - discountPercent / 100);
+            discountText = `${discountPercent}%`;
+        } else if (discountAmount > 0) {
+            total = subtotal - discountAmount;
+            discountText = `${formatNumber(discountAmount)} (Amount)`;
+        }
+        
+        total = Math.max(0, total);
+        document.getElementById('modal-subtotal').textContent = formatNumber(subtotal);
+        document.getElementById('modal-discount').textContent = discountText;
+        document.getElementById('modal-total').textContent = formatNumber(total);
+        document.getElementById('amount-received').value = '';
+        document.getElementById('change-amount').textContent = '0';
+        paymentModal.show();
+    }
+    
+    function calculateChange() {
+        const total = parseFloat(document.getElementById('modal-total').textContent.replace(/,/g, ''));
+        const receivedInput = document.getElementById('amount-received');
+        const received = parseFloat(receivedInput.value) || 0;
+        const change = received - total;
+        document.getElementById('change-amount').textContent = formatNumber(change >= 0 ? change : 0);
+    }
+    function setAmountToTotal() {
+        const total = parseFloat(document.getElementById('modal-total').textContent.replace(/,/g, ''));
+        document.getElementById('amount-received').value = Math.ceil(total);
+        calculateChange();
+    }
+    function addAmount(amount) {
+        const receivedInput = document.getElementById('amount-received');
+        let currentAmount = parseFloat(receivedInput.value) || 0;
+        receivedInput.value = currentAmount + amount;
+        calculateChange();
+    }
+    function multiplyAmount(multiplier) {
+        const receivedInput = document.getElementById('amount-received');
+        let currentAmount = parseFloat(receivedInput.value) || 0;
+        if (currentAmount > 0) {
+            receivedInput.value = currentAmount * multiplier;
+            calculateChange();
+        } else {
+            showToast('Enter an amount first to multiply.', 'error');
+        }
+    }
+    function clearAmount() {
+        document.getElementById('amount-received').value = '';
+        calculateChange();
+    }
+    // --- STOCK & CART LOGIC ---
+    function loadPurchaseHistoryTable(page = 1) {
+        const tableBody = document.getElementById('purchase-history-table');
+        const totalPages = Math.ceil(allPurchaseHistory.length / ITEMS_PER_PAGE);
+        const startIndex = (page - 1) * ITEMS_PER_PAGE;
+        const pageData = allPurchaseHistory.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        
+        tableBody.innerHTML = pageData.length === 0 
+            ? '<tr><td colspan="6" class="text-center py-4">No purchase history found.</td></tr>' 
+            : pageData.map(s => `<tr>
+                <td>${new Date(s.date).toLocaleDateString()}</td>
+                <td>${s.itemName}</td>
+                <td class="admin-only">${formatNumber(s.buyPrice)}</td>
+                <td>${s.quantity}</td>
+                <td class="fw-bold text-success admin-only">${formatNumber(s.totalPurchase)}</td>
+                <td>${s.remarks || ''}</td>
+            </tr>`).join('');
+        
+        renderPagination('purchase-pagination', page, totalPages, 'loadPurchaseHistoryTable');
+    }
+    
+    function loadLostStockTable(page = 1) {
+        const tableBody = document.getElementById('lost-stock-table');
+        const totalPages = Math.ceil(allLostStockHistory.length / ITEMS_PER_PAGE);
+        const startIndex = (page - 1) * ITEMS_PER_PAGE;
+        const pageData = allLostStockHistory.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        
+        tableBody.innerHTML = pageData.length === 0 
+            ? '<tr><td colspan="4" class="text-center py-4">No lost stock history found.</td></tr>' 
+            : pageData.map(s => `<tr>
+                <td>${new Date(s.date).toLocaleDateString()}</td>
+                <td>${s.itemName}</td>
+                <td class="text-danger fw-bold">${s.quantity}</td>
+                <td>${s.remarks}</td>
+            </tr>`).join('');
+            
+        renderPagination('lost-stock-pagination', page, totalPages, 'loadLostStockTable');
+    }
+    
+    function loadPaymentsTable(page = 1) {
+        const dateFilter = document.getElementById('payments-date-filter').value;
+        let filteredData = allPaymentsHistory; 
+        if (dateFilter) {
+            const targetDate = new Date(dateFilter).toISOString().split('T')[0];
+            filteredData = allPaymentsHistory.filter(p => new Date(p.date).toISOString().split('T')[0] === targetDate);
+        }
+        const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+        const startIndex = (page - 1) * ITEMS_PER_PAGE;
+        const pageData = filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        const tableBody = document.getElementById('payments-table');
+        
+        tableBody.innerHTML = pageData.length === 0 
+            ? '<tr><td colspan="8" class="text-center py-4">No payments found.</td></tr>' 
+            : pageData.map(p => `<tr>
+                <td>${new Date(p.date).toLocaleString()}</td>
+                <td class="text-primary">${p.invoice}</td>
+                <td class="fw-bold">${formatNumber(p.amountPaid)}</td>
+                <td>${formatNumber(p.totalSales)}</td>
+                <td class="admin-only">${formatNumber(p.totalBuy)}</td>
+                <td>${formatNumber(p.change)}</td>
+                <td class="text-success fw-bold admin-only">${formatNumber(p.profit)}</td>
+                <td><span class="badge bg-success">${p.status}</span></td>
+            </tr>`).join('');
+        
+        renderPagination('payments-pagination', page, totalPages, 'loadPaymentsTable');
+    }
+    
+    function loadNotes() {
+        const container = document.getElementById('notes-container');
+        container.innerHTML = allNotes.length === 0 ? '<p class="col-12 text-center py-4">No notes yet.</p>' : allNotes.map(note => `
+            <div class="col">
+                <div class="card h-100 shadow-sm">
+                    ${note.imageUrl ? `<img src="${note.imageUrl}" class="card-img-top" alt="Note Image" style="height: 200px; object-fit: cover;" onerror="this.onerror=null;this.src='https://placehold.co/600x400/EEE/333?text=Img+Error';">` : ''}
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">${note.title}</h5>
+                        <p class="card-text">${note.content}</p>
+                    </div>
+                    <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                        <small class="text-muted">${new Date(note.date).toLocaleString()}</small>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteNote('${note.id}')"><ion-icon name="trash-outline"></ion-icon></button>
+                    </div>
+                </div>
+            </div>`).join('');
+    }
+    
+    function savePurchase() {
+        const selectElement = document.getElementById('purchase-product');
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const currentBuyPrice = selectedOption ? parseFloat(selectedOption.dataset.buyPrice) : 0;
+        
+        let enteredBuyPrice = parseFloat(document.getElementById('purchase-buy-price').value);
+        if (isNaN(enteredBuyPrice)) enteredBuyPrice = currentBuyPrice;
+
+        const purchaseData = {
+            productId: selectElement.value,
+            date: document.getElementById('purchase-date').value,
+            buyPrice: enteredBuyPrice,
+            qty: parseInt(document.getElementById('purchase-qty').value),
+            remarks: document.getElementById('purchase-remarks').value,
+            updateDefaultBuyPrice: document.getElementById('update-default-buy-price').checked
+        };
+        if (!purchaseData.productId || !(purchaseData.qty > 0)) { return showToast('Product and a valid quantity are required.', 'error'); }
+        showLoading();
+        
+        apiCall('addPurchase', purchaseData)
+            .then(response => {
+                allProducts = response.products;
+                allPurchaseHistory = response.purchaseHistory;
+                loadPurchaseHistoryTable(1);
+                updateProductDropdowns();
+                addPurchaseModal.hide();
+                showToast(response.status);
+                hideLoading();
+            })
+            .catch(err => { showToast('Error: ' + err.message, 'error'); hideLoading(); });
+    }
+
+    function saveLostStock() {
+        const lostStockData = {
+            productId: document.getElementById('lost-stock-product').value,
+            date: document.getElementById('lost-stock-date').value,
+            qty: parseInt(document.getElementById('lost-stock-qty').value),
+            remarks: document.getElementById('lost-stock-remarks').value
+        };
+        if (!lostStockData.productId || !(lostStockData.qty > 0)) {
+            return showToast('Product and a valid quantity are required.', 'error');
+        }
+        if (!lostStockData.remarks) {
+            return showToast('Reason / Remarks are required for stock loss.', 'error');
+        }
+        showLoading();
+        
+        apiCall('processLostStock', lostStockData)
+            .then(response => {
+                allProducts = response.products;
+                allLostStockHistory = response.lostStockHistory;
+                updateProductDropdowns();
+                loadLostStockTable(1);
+                lostStockModal.hide();
+                showToast(response.status);
+                hideLoading();
+            })
+            .catch(err => {
+                showToast('Error: ' + err.message, 'error');
+                hideLoading();
+            });
+    }
+
+    function processPayment(shouldPrint = false) {
+        const total = parseFloat(document.getElementById('modal-total').textContent.replace(/,/g, ''));
+        const received = parseFloat(document.getElementById('amount-received').value) || 0;
+        if (received < total) { return showToast('Amount received is less than total', 'error'); }
+        
+        const discountPercent = parseFloat(document.getElementById('discount').value) || 0;
+        const discountAmount = parseFloat(document.getElementById('discount-amount').value) || 0;
+        const saleData = { 
+            invoiceNo: currentInvoiceNumber, 
+            date: new Date().toISOString(), 
+            items: cart, 
+            total: total, 
+            amountPaid: received, 
+            change: received - total,
+            discountPercent: discountPercent,
+            discountAmount: discountAmount
+        };
+
+        showLoading();
+        
+        apiCall('processSale', saleData)
+            .then(response => {
+                allProducts = response.products;
+                currentInvoiceNumber = response.invoiceNumber;
+                
+                if (response.newPayment) {
+                    allPaymentsHistory.unshift(response.newPayment);
+                }
+                if (response.newSale && response.newSale.items) {
+                    const productMap = new Map(allProducts.map(p => [p.id, p.imageUrl]));
+                    const newSaleItems = response.newSale.items.map(item => ({
+                        status: 'Completed', 
+                        date: response.newSale.date, 
+                        item: item.name,
+                        price: item.sellPrice, 
+                        qty: item.qty, 
+                        subtotal: item.sellPrice * item.qty,
+                        invoice: response.newSale.invoiceNo, 
+                        profit: (item.sellPrice - item.buyPrice) * item.qty,
+                        imageUrl: productMap.get(item.id) || null
+                    }));
+                    allSalesHistory.unshift(...newSaleItems.reverse());
+                }
+                
+                cart = [];
+                document.getElementById('discount').value = '';
+                document.getElementById('discount-amount').value = '';
+                updateCartDisplay();
+                
+                loadPosView();
+                paymentModal.hide();
+                showToast(response.status);
+                hideLoading();
+                
+                if (shouldPrint) {
+                    document.getElementById('print-receipt-container').innerHTML = generateReceiptHTML(saleData, received, received - total);
+                    setTimeout(() => { window.print(); }, 500);
+                }
+            })
+            .catch(err => { showToast('Payment failed: ' + err.message, 'error'); hideLoading(); });
+    }
+
+    function generateReceiptHTML(saleData, received, change) {
+        let itemsHtml = saleData.items.map(item => {
+            let itemName = item.name;
+            let itemTotal = formatNumber(item.sellPrice * item.qty);
+            return `<div style="display: flex; justify-content: space-between; margin-bottom: 2px; width: 100%;">
+                        <span style="flex: 1; text-align: left; padding-right: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.qty}x ${itemName}</span>
+                        <span style="min-width: 40px; text-align: right;">${itemTotal}</span>
+                    </div>`;
+        }).join('');
+
+        let discountHtml = '';
+        if (saleData.discountPercent > 0) {
+            discountHtml = `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Discount:</span><span>${saleData.discountPercent}%</span></div>`;
+        } else if (saleData.discountAmount > 0) {
+            discountHtml = `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Discount:</span><span>-${formatNumber(saleData.discountAmount)}</span></div>`;
+        }
+
+        const subtotal = saleData.items.reduce((sum, item) => sum + (item.sellPrice * item.qty), 0);
+
+        return `
+            <div style="width: 100%; margin: 0; padding: 0;">
+                <div style="text-align: center; margin-bottom: 5px; padding-top: 5px;">
+                    <h4 style="margin: 0; font-size: 16px; font-weight: bold; text-transform: uppercase;">KSM Mobile</h4>
+                    <div style="font-size: 10px; color: #000; margin-top: 2px;">Receipt of Sale</div>
+                </div>
+                
+                <div style="border-bottom: 1px dashed #000; padding-bottom: 3px; margin-bottom: 3px; font-size: 11px;">
+                    <div style="display: flex; justify-content: space-between;"><span>Inv:</span> <span>${saleData.invoiceNo}</span></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Date:</span> <span>${new Date(saleData.date).toLocaleDateString()} ${new Date(saleData.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+                </div>
+                
+                <div style="border-bottom: 1px dashed #000; padding-bottom: 3px; margin-bottom: 3px; font-size: 11px;">
+                    ${itemsHtml}
+                </div>
+                
+                <div style="border-bottom: 1px dashed #000; padding-bottom: 3px; margin-bottom: 3px; font-size: 11px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Subtotal:</span><span>${formatNumber(subtotal)}</span></div>
+                    ${discountHtml}
+                    <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; margin-top: 3px;"><span>Total:</span><span>${formatNumber(saleData.total)}</span></div>
+                </div>
+                
+                <div style="border-bottom: 1px dashed #000; padding-bottom: 3px; margin-bottom: 3px; font-size: 11px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Cash:</span><span>${formatNumber(received)}</span></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Change:</span><span>${formatNumber(change)}</span></div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 5px; margin-bottom: 15px; font-size: 10px; font-weight: bold;">
+                    Thank you for your visit!
+                </div>
+            </div>
+        `;
+    }
+
+    function saveNote() {
+        const noteData = {
+            title: document.getElementById('note-title').value,
+            content: document.getElementById('note-content').value,
+            imageData: newNoteImageData
+        };
+        if (!noteData.title && !noteData.content) { return showToast('Note cannot be empty', 'error'); }
+        showLoading();
+        
+        apiCall('saveNote', noteData)
+            .then(response => { 
+                allNotes = response.notes;
+                loadNotes();
+                addNoteModal.hide();
+                showToast(response.status); 
+                hideLoading(); 
+                newNoteImageData = null; 
+            })
+            .catch(err => { showToast('Error: ' + err.message, 'error'); hideLoading(); });
+    }
+    
+    function deleteNote(noteId) {
+        showConfirmModal('Are you sure you want to delete this note?', () => {
+            showLoading();
+            apiCall('deleteNote', noteId)
+                .then(response => { 
+                    allNotes = response.notes;
+                    loadNotes(); 
+                    showToast(response.status); 
+                    hideLoading(); 
+                })
+                .catch(err => { showToast('Error: ' + err.message, 'error'); hideLoading(); });
+        });
+    }
+    
+    function generateReport() {
+        showLoading();
+        const reportType = document.getElementById('report-type').value;
+        const reports = {};
+        allPaymentsHistory.forEach(p => {
+            if (!p.date) return;
+            const date = new Date(p.date);
+            let key;
+            if (reportType === 'daily') key = date.toISOString().split('T')[0];
+            else if (reportType === 'monthly') key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            else if (reportType === 'yearly') key = date.getFullYear().toString();
+            if (!reports[key]) reports[key] = { date: key, totalSales: 0, totalProfit: 0, itemsSold: 0, totalPurchases: 0 };
+            
+            reports[key].totalSales += p.totalSales || 0;
+            reports[key].totalProfit += p.profit || 0;
+            reports[key].itemsSold += p.itemsSold || 0;
+        });
+        allPurchaseHistory.forEach(purchase => {
+            if (!purchase.date) return;
+            const date = new Date(purchase.date);
+            let key;
+            if (reportType === 'daily') key = date.toISOString().split('T')[0];
+            else if (reportType === 'monthly') key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            else if (reportType === 'yearly') key = date.getFullYear().toString();
+            if (!reports[key]) reports[key] = { date: key, totalSales: 0, totalProfit: 0, itemsSold: 0, totalPurchases: 0 };
+            reports[key].totalPurchases += purchase.totalPurchase || 0;
+        });
+        
+        const data = Object.values(reports).sort((a, b) => new Date(b.date) - new Date(a.date));
+        document.getElementById('report-table-head').innerHTML = `<tr><th>Date</th><th>Items Sold</th><th>Total Sales</th><th class="admin-only">Total Purchases</th><th class="admin-only">Total Profit</th></tr>`;
+        const tableBody = document.getElementById('report-table');
+        
+        tableBody.innerHTML = data.length === 0 ? '<tr><td colspan="5" class="text-center py-4">No data for this report.</td></tr>' 
+            : data.map(row => `<tr>
+                <td>${row.date}</td>
+                <td>${row.itemsSold}</td>
+                <td>${formatNumber(row.totalSales)}</td>
+                <td class="admin-only">${formatNumber(row.totalPurchases)}</td>
+                <td class="text-success fw-bold admin-only">${formatNumber(row.totalProfit)}</td>
+              </tr>`).join('');
+        hideLoading();
+    }
+    
+    function addToCart(product) {
+        if (product.stock <= 0) { return showToast('Out of stock', 'error'); }
+        const existingItem = cart.find(item => item.id === product.id);
+        if (existingItem) {
+            if (existingItem.qty >= product.stock) { return showToast('Not enough stock', 'error'); }
+            existingItem.qty++;
+        } else {
+            cart.push({ ...product, qty: 1 });
+        }
+        updateCartDisplay();
+    }
+    
+    function updateCartDisplay() {
+        const cartContainer = document.getElementById('cart-items');
+        if (cart.length === 0) {
+            cartContainer.innerHTML = '<div class="text-center text-muted p-4"><ion-icon name="cart-outline" style="font-size: 3rem;"></ion-icon><p>Cart is empty</p></div>';
+        } else {
+            cartContainer.innerHTML = cart.map((item, index) => `
+                <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                    <img src="${item.imageUrl || 'https://placehold.co/50x50/EEE/333?text=N/A'}" class="product-img-thumb me-2" onerror="this.onerror=null;this.src='https://placehold.co/50x50/EEE/333?text=N/A';">
+                    <div class="flex-grow-1 overflow-hidden">
+                        <h6 class="mb-0 small text-truncate" title="${item.name}">${item.name}</h6>
+                        <small class="text-primary fw-bold">${formatNumber(item.sellPrice)}</small>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <button class="btn btn-sm btn-outline-secondary px-2" onclick="updateCartItemQty(${index}, ${item.qty - 1})">-</button>
+                        <input type="number" class="form-control form-control-sm mx-1 text-center p-0" style="width: 40px;" value="${item.qty}" onchange="updateCartItemQty(${index}, this.value)">
+                        <button class="btn btn-sm btn-outline-secondary px-2" onclick="updateCartItemQty(${index}, ${item.qty + 1})">+</button>
+                        <button class="btn btn-sm btn-outline-danger ms-2 px-2" onclick="removeCartItem(${index})"><ion-icon name="trash-outline" class="m-0"></ion-icon></button>
+                    </div>
+                </div>`).join('');
+        }
+        updateCartTotals();
+    }
+    
+    function updateCartTotals(discountType) {
+        const subtotal = cart.reduce((sum, item) => sum + (item.sellPrice * item.qty), 0);
+        const discountPercentInput = document.getElementById('discount');
+        const discountAmountInput = document.getElementById('discount-amount');
+        let discountPercent = 0;
+        let discountAmount = 0;
+        if (discountType === 'percent') {
+            discountAmountInput.value = '';
+            discountPercent = parseFloat(discountPercentInput.value) || 0;
+        } else if (discountType === 'amount') {
+            discountPercentInput.value = '';
+            discountAmount = parseFloat(discountAmountInput.value) || 0;
+        } else {
+            discountPercent = parseFloat(discountPercentInput.value) || 0;
+            discountAmount = parseFloat(discountAmountInput.value) || 0;
+        }
+        let total = subtotal;
+        if (discountPercent > 0) {
+            total = subtotal * (1 - discountPercent / 100);
+        } else if (discountAmount > 0) {
+            total = subtotal - discountAmount;
+        }
+        
+        total = Math.max(0, total);
+        document.getElementById('subtotal').textContent = formatNumber(subtotal);
+        document.getElementById('total').textContent = formatNumber(total);
+    }
+    
+    function updateCartItemQty(index, qty) {
+        qty = parseInt(qty);
+        if (qty <= 0) { return removeCartItem(index); }
+        const product = allProducts.find(p => p.id === cart[index].id);
+        if (qty > product.stock) {
+            showToast('Not enough stock', 'error');
+            cart[index].qty = product.stock;
+        } else {
+            cart[index].qty = qty;
+        }
+        updateCartDisplay();
+    }
+    
+    function removeCartItem(index) { cart.splice(index, 1); updateCartDisplay(); }
+    
+    function clearCart() {
+        if(cart.length === 0) return;
+        showConfirmModal('Are you sure you want to clear the cart?', () => {
+            cart = [];
+            document.getElementById('discount').value = '';
+            document.getElementById('discount-amount').value = '';
+            updateCartDisplay();
+            showToast('Cart cleared.');
+        });
+    }
+    
+    function filterProductDropdown(inputId, selectId) {
+        const searchTerm = document.getElementById(inputId).value.toLowerCase();
+        const selectElement = document.getElementById(selectId);
+        
+        const filtered = allProducts.filter(p =>
+            (p.name && p.name.toLowerCase().includes(searchTerm)) ||
+            (p.id && p.id.toLowerCase().includes(searchTerm)) ||
+            (p.barcode && p.barcode.includes(searchTerm))
+        );
+        const currentSelectedValue = selectElement.value;
+        const optionsHtml = '<option value="">Select Product</option>' + 
+                            filtered.map(p => `<option value="${p.id}" data-buy-price="${p.buyPrice}" data-stock="${p.stock}">${p.name} (Stock: ${p.stock})</option>`).join('');
+        
+        selectElement.innerHTML = optionsHtml;
+        if (filtered.some(p => p.id === currentSelectedValue)) {
+            selectElement.value = currentSelectedValue;
+        }
+    }
+    
+    function showAddPurchaseModal() {
+        document.getElementById('purchase-form').reset();
+        document.getElementById('purchase-search-input').value = ''; 
+        updateProductDropdowns();
+        document.getElementById('purchase-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('purchase-current-stock').textContent = 'N/A';
+        document.getElementById('purchase-current-buy-price').textContent = 'N/A';
+        addPurchaseModal.show();
+    }
+    
+    function showLostStockModal() {
+        document.getElementById('lost-stock-form').reset();
+        document.getElementById('lost-stock-search-input').value = ''; 
+        updateProductDropdowns();
+        document.getElementById('lost-stock-date').value = new Date().toISOString().split('T')[0];
+        lostStockModal.show();
+    }
+    
+    function updateProductDropdowns() {
+        const purchaseDropdown = document.getElementById('purchase-product');
+        const lostStockDropdown = document.getElementById('lost-stock-product');
+        const optionsHtml = '<option value="">Select Product</option>' + allProducts.map(p => `<option value="${p.id}" data-buy-price="${p.buyPrice}" data-stock="${p.stock}">${p.name} (Stock: ${p.stock})</option>`).join('');
+        
+        if(purchaseDropdown) purchaseDropdown.innerHTML = optionsHtml;
+        if(lostStockDropdown) lostStockDropdown.innerHTML = optionsHtml;
+    }
+    
+    function updateCategoryDatalist() {
+        const datalist = document.getElementById('category-datalist');
+        datalist.innerHTML = allCategories.map(c => `<option value="${c}">`).join('');
+    }
+    
+    function updatePurchaseModalDetails(selectElement) {
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        
+        if (selectedOption && selectedOption.value) {
+            document.getElementById('purchase-buy-price').value = selectedOption.dataset.buyPrice;
+            document.getElementById('purchase-current-stock').textContent = selectedOption.dataset.stock;
+            document.getElementById('purchase-current-buy-price').textContent = formatNumber(parseFloat(selectedOption.dataset.buyPrice));
+        } else {
+            document.getElementById('purchase-buy-price').value = '';
+            document.getElementById('purchase-current-stock').textContent = 'N/A';
+            document.getElementById('purchase-current-buy-price').textContent = 'N/A';
+        }
+    }
+    
+    function showConfirmModal(message, onConfirm) {
+        document.getElementById('confirm-modal-text').textContent = message;
+        confirmCallback = onConfirm;
+        document.getElementById('confirm-modal-btn').onclick = () => {
+            if (typeof confirmCallback === 'function') confirmCallback();
+            confirmModal.hide();
+        };
+        confirmModal.show();
+    }
+
+    function filterPosProducts() {
+        const searchTerm = document.getElementById('product-search').value.toLowerCase();
+        const categorySelect = document.getElementById('pos-category-select');
+        const category = categorySelect ? categorySelect.value : 'all';
+
+        let filtered = allProducts; 
+        if (category !== 'all') {
+            filtered = filtered.filter(p => p.category === category);
+        }
+        if (searchTerm) {
+            filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm) || (p.barcode && p.barcode.includes(searchTerm)));
+        }
+        
+        updateProductGrid(filtered);
+    }
+
+    function filterSales() { loadSalesTable(1); }
+    function filterPayments() { loadPaymentsTable(1); }
+    
+    function exportReport() {
+        const table = document.getElementById('report-table-export');
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += Array.from(table.rows).map(r => Array.from(r.cells).map(c => `"${c.innerText}"`).join(',')).join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "report.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    
+    function handleProductSearch(term) {
+        if(!term) return;
+        const product = allProducts.find(p => p.barcode === term);
+        if (product) {
+            if (product.stock > 0) {
+                addToCart(product);
+                document.getElementById('product-search').value = '';
+            } else {
+                showToast('Product is out of stock.', 'error');
+            }
+        } else {
+            if (currentUserRole === 'admin') {
+                showConfirmModal(`Product with barcode "${term}" not found. Add it now?`, () => {
+                    showAddProductModal();
+                    document.getElementById('product-barcode').value = term;
+                });
+            } else {
+                showToast(`Barcode ${term} not found.`, 'error');
+            }
+        }
+    }
+    
+    function handlePurchaseSearch(searchTerm) {
+        filterProductDropdown('purchase-search-input', 'purchase-product');
+        const product = allProducts.find(p => p.barcode === searchTerm);
+        if (product) {
+            const selectElement = document.getElementById('purchase-product');
+            selectElement.value = product.id;
+            updatePurchaseModalDetails(selectElement);
+            showToast(`Selected: ${product.name}`);
+        }
+    }
+    
+    function handleLostStockSearch(searchTerm) {
+        filterProductDropdown('lost-stock-search-input', 'lost-stock-product');
+        const product = allProducts.find(p => p.barcode === searchTerm);
+        if (product) {
+            document.getElementById('lost-stock-product').value = product.id;
+            showToast(`Selected: ${product.name}`);
+        }
+    }
+
+    function showBarcodeScanner(context) {
+        currentScannerContext = context;
+        document.getElementById('scanner-result').innerHTML = '';
+        scannerModal.show();
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+        document.getElementById('scanner-result').innerHTML = `<div class="alert alert-success m-0 p-2">${decodedText}</div>`;
+        
+        if (currentScannerContext === 'pos') {
+            handleProductSearch(decodedText);
+        } else if (currentScannerContext === 'purchase') {
+            document.getElementById('purchase-search-input').value = decodedText;
+            handlePurchaseSearch(decodedText);
+        } else if (currentScannerContext === 'productForm') {
+            document.getElementById('product-barcode').value = decodedText;
+            showToast('Barcode captured!');
+        } else if (currentScannerContext === 'products') {
+            handleProductTableScan(decodedText);
+        } else if (currentScannerContext === 'lostStock') {
+            document.getElementById('lost-stock-search-input').value = decodedText;
+            handleLostStockSearch(decodedText);
+        }
+        
+        stopScanner();
+    }
+    
+    function onScanFailure(error) { }
+
+    function stopScanner() {
+        scannerModal.hide();
+    }
+
+    function renderPagination(containerId, currentPage, totalPages, funcName) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        if (totalPages <= 1) return;
+        
+        let paginationHtml = '';
+        for (let i = 1; i <= totalPages; i++) {
+            paginationHtml += `<li class="page-item ${i == currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="event.preventDefault(); ${funcName}(${i})">${i}</a></li>`;
+        }
+        container.innerHTML = paginationHtml;
+    }
+    
+    function showLoading() { 
+        const spinner = document.createElement('div');
+        spinner.id = 'loading-spinner';
+        spinner.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(255,255,255,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        spinner.innerHTML = '<div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem;"><span class="visually-hidden">Loading...</span></div>';
+        document.body.appendChild(spinner);
+    }
+    
+    function hideLoading() { 
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.remove();
+    }
+    
+    function showToast(message, type = 'success') {
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            toastContainer.style.zIndex = '1055';
+            document.body.appendChild(toastContainer);
+        }
+
+        const toastId = 'toast-' + Date.now() + Math.floor(Math.random() * 100);
+        const toastBg = type === 'success' ? 'text-bg-success' : 'text-bg-danger';
+        const iconName = type === 'success' ? 'checkmark-circle-outline' : 'warning-outline';
+        
+        const toastWrapper = document.createElement('div');
+        toastWrapper.innerHTML = `
+            <div id="${toastId}" class="toast align-items-center border-0 ${toastBg} mb-2 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body d-flex align-items-center gap-2">
+                        <ion-icon name="${iconName}" style="font-size: 1.2rem;"></ion-icon>
+                        <span>${message}</span>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>`;
+            
+        const toastEl = toastWrapper.firstElementChild;
+        toastContainer.appendChild(toastEl);
+        
+        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+        toast.show();
+        
+        toastEl.addEventListener('hidden.bs.toast', () => {
+            toastEl.remove();
+        });
+    }
+    
+    function formatNumber(num) {
+        if (num === null || typeof num === 'undefined' || isNaN(num)) return '0';
+        return Number(num).toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+    
+    // --- SYNC FUNCTIONS ---
+    function updateSyncStatus(status, message = '') {
+        const statusText = document.getElementById('sync-status-text');
+        const statusDot = document.querySelector('#sync-status .dot');
+        
+        statusDot.className = 'dot'; 
+        switch(status) {
+            case 'syncing':
+                statusText.textContent = 'Syncing...';
+                statusDot.classList.add('syncing');
+                break;
+            case 'success':
+                statusText.textContent = `Updated: ${message}`;
+                statusDot.classList.add('success');
+                break;
+            case 'error':
+                statusText.textContent = 'Sync Error';
+                statusDot.classList.add('error');
+                break;
+            default:
+                statusText.textContent = 'Standby';
+        }
+    }
+    
+    function handleVisibilityChange() {
+        if (document.visibilityState === 'visible') {
+            syncData();
+        }
+    }
+    
+    function syncData() {
+        if (isSyncing) return;
+        isSyncing = true;
+        updateSyncStatus('syncing');
+        
+        apiCall('getInitialData')
+            .then(data => {
+                allProducts = data.products || [];
+                allCategories = data.categories || [];
+                allNotes = data.notes || [];
+                allSalesHistory = data.salesHistory || [];
+                allPaymentsHistory = data.paymentsHistory || [];
+                allPurchaseHistory = data.purchaseHistory || [];
+                allLostStockHistory = data.lostStockHistory || [];
+                
+                updateSyncStatus('success', new Date().toLocaleTimeString());
+                isSyncing = false;
+                
+                refreshCurrentView();
+            })
+            .catch(err => {   
+                updateSyncStatus('error');
+                isSyncing = false;
+                showToast('Sync failed: ' + err.message, 'error');
+            });
+    }
+    
+    function refreshCurrentView() {
+        const activeViewElement = document.querySelector('.view.active');
+        if (!activeViewElement) return;
+        const viewName = activeViewElement.id.replace('-view', '');
+        
+        switch(viewName) {
+            case 'dashboard': 
+                apiCall('getDashboardData').then(loadDashboardData);
+                break;
+            case 'pos': loadPosView(); break;
+            case 'products': loadProductsTable(); break;
+            case 'purchases': 
+                loadPurchaseHistoryTable(1); 
+                loadLostStockTable(1);
+                break;
+            case 'sales': loadSalesTable(1); break;
+            case 'payments': loadPaymentsTable(1); break;
+            case 'reports': generateReport(); break;
+            case 'notes': loadNotes(); break;
+            case 'logins': loadLoginsView(); break;
+        }
+    }
+
+    // --- SCROLL TO TOP (POS) ---
+    function togglePosScrollTop() {
+        const posView = document.getElementById('pos-view');
+        const btn = document.getElementById('posScrollTopBtn');
+        if (!posView || !btn) return;
+        
+        if (!posView.classList.contains('active')) {
+            btn.classList.add('d-none');
+            btn.classList.remove('d-flex');
+            return;
+        }
+
+        const scrollArea = document.getElementById('pos-product-scroll-area');
+        const windowScroll = window.scrollY || document.documentElement.scrollTop;
+        const divScroll = scrollArea ? scrollArea.scrollTop : 0;
+
+        if (windowScroll > 150 || divScroll > 150) {
+            btn.classList.remove('d-none');
+            btn.classList.add('d-flex');
+        } else {
+            btn.classList.add('d-none');
+            btn.classList.remove('d-flex');
+        }
+    }
+
+    function scrollToTopPos() {
+        const scrollArea = document.getElementById('pos-product-scroll-area');
+        if (scrollArea) {
+            scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // --- DARK MODE LOGIC ---
+    function toggleTheme() {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        localStorage.setItem('pos_theme', isDark ? 'dark' : 'light');
+        updateThemeIcon(isDark);
+    }
+
+    function updateThemeIcon(isDark) {
+        const icon = document.getElementById('theme-icon');
+        if (icon) {
+            icon.name = isDark ? 'sunny-outline' : 'moon-outline';
+        }
+        document.documentElement.setAttribute('data-bs-theme', isDark ? 'dark' : 'light');
+    }
+
+    function loadSavedTheme() {
+        const savedTheme = localStorage.getItem('pos_theme');
+        const isDark = savedTheme === 'dark';
+        if (isDark) {
+            document.body.classList.add('dark-mode');
+        }
+        updateThemeIcon(isDark);
+    }
+    </script>
+</body>
+</html>
