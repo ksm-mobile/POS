@@ -1147,13 +1147,19 @@
                 html5QrcodeScanner = new Html5QrcodeScanner(
                     "reader",
                     {
-                        fps: 10,
-                        qrbox: { width: 250, height: 150 },
+                        fps: 20, // Increased for faster scanning attempts
+                        qrbox: { width: 300, height: 120 }, // Wider box for 1D barcodes
                         rememberLastUsedCamera: true,
                         showTorchButtonIfSupported: true,
-                        useBarCodeDetectorIfSupported: true 
+                        useBarCodeDetectorIfSupported: true, // Uses phone's native barcode API
+                        videoConstraints: {
+                            facingMode: "environment",
+                            width: { ideal: 1280 }, // Force HD resolution for sharper lines
+                            height: { ideal: 720 },
+                            advanced: [{ focusMode: "continuous" }] // Try to force auto-focus
+                        }
                     },
-                    false 
+                    false // Hides verbose console logs
                 );
                 html5QrcodeScanner.render(onScanSuccess, onScanFailure);
             }
